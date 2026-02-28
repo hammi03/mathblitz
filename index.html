@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>MathBlitz</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+    <!-- ── COUNTDOWN OVERLAY ── -->
+    <div id="countdown-overlay" class="countdown-overlay">
+        <div class="countdown-number" id="countdown-number">3</div>
+    </div>
+
+    <!-- ── AUTH MODAL ── -->
+    <div id="auth-modal" class="modal-overlay">
+        <div class="modal">
+            <div class="modal-tabs">
+                <button class="modal-tab active" data-tab="signin">Sign In</button>
+                <button class="modal-tab" data-tab="signup">Sign Up</button>
+            </div>
+
+            <div id="tab-signin" class="modal-pane active">
+                <div class="form-group">
+                    <label>Email</label>
+                    <input type="email" id="signin-email" placeholder="you@example.com" autocomplete="email">
+                </div>
+                <div class="form-group">
+                    <label>Password</label>
+                    <input type="password" id="signin-password" placeholder="••••••••" autocomplete="current-password">
+                </div>
+                <p class="auth-error" id="signin-error"></p>
+                <button id="signin-btn" class="btn-primary">SIGN IN</button>
+            </div>
+
+            <div id="tab-signup" class="modal-pane">
+                <div class="form-group">
+                    <label>Username</label>
+                    <input type="text" id="signup-username" placeholder="mathwizard42" autocomplete="off">
+                </div>
+                <div class="form-group">
+                    <label>Email</label>
+                    <input type="email" id="signup-email" placeholder="you@example.com" autocomplete="email">
+                </div>
+                <div class="form-group">
+                    <label>Password</label>
+                    <input type="password" id="signup-password" placeholder="at least 6 characters" autocomplete="new-password">
+                </div>
+                <p class="auth-error" id="signup-error"></p>
+                <button id="signup-btn" class="btn-primary">CREATE ACCOUNT</button>
+            </div>
+
+            <button id="auth-close" class="btn-ghost">Continue as Guest</button>
+        </div>
+    </div>
+
+    <!-- ── MENU SCREEN ── -->
+    <div id="screen-menu" class="screen active">
+        <div class="logo">
+            <h1>MathBlitz</h1>
+            <p>Sharpen your mind. Beat the clock. Crush the competition.</p>
+        </div>
+
+        <!-- User bar -->
+        <div class="user-bar" id="user-bar">
+            <div id="user-guest" class="user-info">
+                <span class="user-name muted">Playing as Guest</span>
+                <button id="sign-in-menu-btn" class="btn-ghost small">Sign In</button>
+            </div>
+            <div id="user-loggedin" class="user-info hidden">
+                <div class="user-left">
+                    <span class="streak-badge" id="streak-badge" title="Day streak">🔥 <span id="streak-count">0</span></span>
+                    <span id="user-display-name" class="user-name">—</span>
+                </div>
+                <button id="sign-out-btn" class="btn-ghost small">Sign Out</button>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>Mode</h2>
+            <div class="modes">
+                <button class="mode-btn active" data-mode="classic">
+                    <span class="mode-icon">⚡</span>
+                    <div>
+                        <span class="mode-name">Classic</span>
+                        <span class="mode-desc">countdown timer · max score</span>
+                    </div>
+                </button>
+                <button class="mode-btn" data-mode="sprint">
+                    <span class="mode-icon">🏁</span>
+                    <div>
+                        <span class="mode-name">Sprint</span>
+                        <span class="mode-desc">10 questions · fastest time</span>
+                    </div>
+                </button>
+                <button class="mode-btn" data-mode="zen">
+                    <span class="mode-icon">∞</span>
+                    <div>
+                        <span class="mode-name">Zen</span>
+                        <span class="mode-desc">no timer · just practice</span>
+                    </div>
+                </button>
+                <button class="mode-btn mode-daily" id="daily-mode-btn" data-mode="daily">
+                    <span class="mode-icon">📅</span>
+                    <div>
+                        <span class="mode-name">Daily <span id="daily-date-label"></span></span>
+                        <span class="mode-desc" id="daily-mode-desc">20 questions · same for everyone</span>
+                    </div>
+                    <span class="daily-badge hidden" id="daily-done-badge">✓</span>
+                </button>
+            </div>
+        </div>
+
+        <div class="settings-row" id="settings-row">
+            <div class="section">
+                <h2>Difficulty</h2>
+                <div class="pill-row">
+                    <button class="pill-btn active" data-diff="easy">💀</button>
+                    <button class="pill-btn" data-diff="medium">💀💀</button>
+                    <button class="pill-btn" data-diff="hard">💀💀💀</button>
+                </div>
+            </div>
+            <div class="section" id="time-section">
+                <h2>Time</h2>
+                <div class="pill-row">
+                    <button class="pill-btn" data-time="30">30s</button>
+                    <button class="pill-btn active" data-time="60">60s</button>
+                    <button class="pill-btn" data-time="90">90s</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="action-row">
+            <button id="start-btn" class="btn-primary">START</button>
+            <button id="duel-btn" class="btn-duel">⚔️</button>
+        </div>
+
+        <div class="theme-picker">
+            <button class="theme-dot active" data-theme="void"      title="Void">🌌</button>
+            <button class="theme-dot"        data-theme="clouds"    title="Pixel Sky">☁️</button>
+            <button class="theme-dot"        data-theme="meadow"    title="Meadow">🌿</button>
+            <button class="theme-dot"        data-theme="synthwave" title="Synthwave">🌆</button>
+            <button class="theme-dot"        data-theme="space"     title="Deep Space">✨</button>
+        </div>
+
+        <div class="menu-bottom">
+            <p class="best-label">Personal best: <strong id="best-display">—</strong></p>
+            <div class="menu-bottom-btns">
+                <button id="leaderboard-btn" class="btn-secondary">Leaderboard</button>
+                <button id="notif-btn" class="btn-secondary" title="Enable daily reminders">🔔</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── GAME SCREEN ── -->
+    <div id="screen-game" class="screen">
+        <div class="game-header">
+            <div class="hud-stat">
+                <span class="hud-label">SCORE</span>
+                <span class="hud-value" id="score-display">0</span>
+            </div>
+            <div class="hud-stat center">
+                <span class="hud-label" id="timer-label">TIME</span>
+                <span class="hud-value accent" id="timer-display">60</span>
+            </div>
+            <div class="hud-stat center">
+                <span class="hud-label">STREAK</span>
+                <span class="hud-value" id="streak-display">0</span>
+            </div>
+            <div class="hud-stat right">
+                <span class="hud-label">LEVEL</span>
+                <span class="hud-value level-val" id="level-display">1</span>
+            </div>
+        </div>
+
+        <div class="progress-bar"><div class="progress-fill" id="progress-fill"></div></div>
+
+        <div class="question-card">
+            <div class="question" id="question-display">—</div>
+            <input type="number" id="answer-input" placeholder="answer" autocomplete="off" inputmode="numeric">
+            <div class="feedback" id="feedback">&nbsp;</div>
+        </div>
+
+        <p class="hint">Press <kbd>Enter</kbd> to submit</p>
+
+        <button id="quit-btn" class="btn-ghost">Quit</button>
+    </div>
+
+    <!-- ── RESULTS SCREEN ── -->
+    <div id="screen-results" class="screen">
+        <h1 class="results-title" id="results-title">Game Over</h1>
+        <p class="results-sub" id="results-sub"></p>
+
+        <div class="stats-grid">
+            <div class="stat-card">
+                <span class="stat-label">Score</span>
+                <span class="stat-value" id="res-score">0</span>
+            </div>
+            <div class="stat-card">
+                <span class="stat-label">Correct</span>
+                <span class="stat-value green" id="res-correct">0</span>
+            </div>
+            <div class="stat-card">
+                <span class="stat-label">Wrong</span>
+                <span class="stat-value red" id="res-wrong">0</span>
+            </div>
+            <div class="stat-card">
+                <span class="stat-label">Accuracy</span>
+                <span class="stat-value" id="res-accuracy">0%</span>
+            </div>
+            <div class="stat-card">
+                <span class="stat-label">Best Streak</span>
+                <span class="stat-value" id="res-streak">0</span>
+            </div>
+            <div class="stat-card">
+                <span class="stat-label">Time</span>
+                <span class="stat-value" id="res-time">0s</span>
+            </div>
+        </div>
+
+        <div class="new-best" id="new-best">NEW BEST!</div>
+        <p class="save-status" id="save-status"></p>
+
+        <div class="result-actions">
+            <button id="play-again-btn" class="btn-primary">PLAY AGAIN</button>
+            <button id="menu-btn" class="btn-ghost">Menu</button>
+        </div>
+    </div>
+
+    <!-- ── LEADERBOARD SCREEN ── -->
+    <div id="screen-leaderboard" class="screen">
+        <div class="lb-header">
+            <button id="lb-back" class="btn-ghost">← Back</button>
+            <h1 class="lb-title">Leaderboard</h1>
+            <div></div>
+        </div>
+
+        <div class="section">
+            <h2>Mode</h2>
+            <div class="pill-row">
+                <button class="pill-btn active" data-lb-mode="classic">Classic</button>
+                <button class="pill-btn" data-lb-mode="sprint">Sprint</button>
+                <button class="pill-btn" data-lb-mode="zen">Zen</button>
+                <button class="pill-btn" data-lb-mode="daily">Daily</button>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>Difficulty</h2>
+            <div class="pill-row">
+                <button class="pill-btn active" data-lb-diff="easy">💀</button>
+                <button class="pill-btn" data-lb-diff="medium">💀💀</button>
+                <button class="pill-btn" data-lb-diff="hard">💀💀💀</button>
+            </div>
+        </div>
+
+        <div class="section lb-time-section" id="lb-time-section">
+            <h2>Time Limit</h2>
+            <div class="pill-row">
+                <button class="pill-btn" data-lb-time="30">30s</button>
+                <button class="pill-btn active" data-lb-time="60">60s</button>
+                <button class="pill-btn" data-lb-time="90">90s</button>
+            </div>
+        </div>
+
+        <div id="lb-list" class="lb-list">
+            <p class="lb-empty">Loading...</p>
+        </div>
+    </div>
+
+    <!-- ── DUEL SCREEN ── -->
+    <div id="screen-duel" class="screen">
+
+        <!-- Phase: searching / countdown -->
+        <div id="duel-searching" class="duel-phase">
+            <div id="duel-pre-search">
+                <div class="duel-sword">⚔️</div>
+                <h2 class="duel-search-title">Finding Opponent</h2>
+                <div class="duel-dots"><span></span><span></span><span></span></div>
+                <p class="duel-search-sub">Waiting for another player...</p>
+                <button id="cancel-duel-btn" class="btn-ghost">Cancel</button>
+            </div>
+            <div id="duel-pre-countdown" class="hidden">
+                <p class="duel-found-label">Opponent found!</p>
+                <p class="duel-opp-found" id="duel-opp-found">—</p>
+                <div class="duel-countdown-big" id="duel-countdown-num">3</div>
+            </div>
+        </div>
+
+        <!-- Phase: active duel -->
+        <div id="duel-active" class="duel-phase hidden">
+            <div class="duel-scores">
+                <div class="duel-pscore">
+                    <span class="duel-pname" id="duel-my-name">You</span>
+                    <span class="duel-pts" id="duel-my-score">0</span>
+                    <span class="duel-correct" id="duel-my-correct">0 ✓</span>
+                </div>
+                <div class="duel-center">
+                    <span class="duel-vs">VS</span>
+                    <span class="duel-timer" id="duel-timer">60</span>
+                </div>
+                <div class="duel-pscore right">
+                    <span class="duel-pname" id="duel-opp-name">—</span>
+                    <span class="duel-pts" id="duel-opp-score">0</span>
+                    <span class="duel-correct" id="duel-opp-correct">0 ✓</span>
+                </div>
+            </div>
+
+            <div class="progress-bar">
+                <div class="progress-fill" id="duel-progress" style="transition: width 1s linear;"></div>
+            </div>
+
+            <div class="question-card">
+                <div class="question" id="duel-question">—</div>
+                <input type="number" id="duel-input" placeholder="answer" autocomplete="off" inputmode="numeric">
+                <div class="feedback" id="duel-feedback">&nbsp;</div>
+            </div>
+
+            <p class="hint">Press <kbd>Enter</kbd> to submit</p>
+            <button id="forfeit-btn" class="btn-ghost">Forfeit</button>
+        </div>
+
+        <!-- Phase: result -->
+        <div id="duel-result" class="duel-phase hidden">
+            <div class="duel-result-icon" id="duel-result-icon">🏆</div>
+            <h1 class="duel-result-title" id="duel-result-title">Victory!</h1>
+            <div class="duel-result-scores">
+                <div class="duel-result-player">
+                    <span class="duel-result-name" id="dr-my-name">You</span>
+                    <span class="duel-result-pts" id="dr-my-score">0</span>
+                    <span class="duel-correct" id="dr-my-correct">0 ✓</span>
+                </div>
+                <span class="duel-vs">VS</span>
+                <div class="duel-result-player">
+                    <span class="duel-result-name" id="dr-opp-name">—</span>
+                    <span class="duel-result-pts" id="dr-opp-score">0</span>
+                    <span class="duel-correct" id="dr-opp-correct">0 ✓</span>
+                </div>
+            </div>
+            <div class="result-actions">
+                <button id="duel-again-btn" class="btn-primary">DUEL AGAIN</button>
+                <button id="duel-menu-btn" class="btn-ghost">Menu</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts — order matters -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.jsdelivr.net/npm/socket.io-client@4/dist/socket.io.min.js"></script>
+    <script src="js/config.js"></script>
+    <script src="js/bg.js"></script>
+    <script src="js/db.js"></script>
+    <script src="js/sound.js"></script>
+    <script src="js/game.js"></script>
+    <script src="js/daily.js"></script>
+    <script src="js/duel-client.js"></script>
+    <script src="js/ui.js"></script>
+    <script src="js/main.js"></script>
+</body>
+</html>
