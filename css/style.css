@@ -298,10 +298,19 @@ h2 {
     display: flex;
     align-items: center;
 }
+/* ── Answer row (input + submit button) ── */
+.answer-row {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+}
+
 #answer-input {
     width: 100%;
-    max-width: 180px;
-    padding: 0.7rem 1rem;
+    max-width: 150px;
+    padding: 0.7rem 0.75rem;
     background: var(--surface2);
     border: 2px solid var(--border);
     border-radius: 10px;
@@ -318,6 +327,25 @@ h2 {
 #answer-input:focus   { border-color: var(--accent); }
 #answer-input.correct { border-color: var(--green); color: var(--green); }
 #answer-input.wrong   { border-color: var(--red);   color: var(--red);   }
+
+.btn-submit {
+    width: 3.2rem;
+    height: 3.2rem;
+    flex-shrink: 0;
+    background: var(--accent);
+    border: none;
+    border-radius: 10px;
+    color: #fff;
+    font-size: 1.3rem;
+    cursor: pointer;
+    transition: transform 0.1s, background 0.15s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.btn-submit:active { transform: scale(0.92); }
+.btn-submit.correct { background: var(--green); }
+.btn-submit.wrong   { background: var(--red); }
 
 .feedback {
     font-size: 0.9rem;
@@ -678,11 +706,11 @@ kbd {
 .duel-result-name   { font-size: 0.8rem; color: var(--muted); }
 .duel-result-pts    { font-size: 2.2rem; font-weight: 900; }
 
-/* Duel input — reuse same styles as game input */
+/* Duel input — same as game input */
 #duel-input {
     width: 100%;
-    max-width: 180px;
-    padding: 0.7rem 1rem;
+    max-width: 150px;
+    padding: 0.7rem 0.75rem;
     background: var(--surface2);
     border: 2px solid var(--border);
     border-radius: 10px;

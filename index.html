@@ -180,11 +180,12 @@
 
         <div class="question-card">
             <div class="question" id="question-display">—</div>
-            <input type="number" id="answer-input" placeholder="answer" autocomplete="off" inputmode="numeric">
+            <div class="answer-row">
+                <input type="number" id="answer-input" placeholder="answer" autocomplete="off" inputmode="numeric">
+                <button id="submit-btn" class="btn-submit">→</button>
+            </div>
             <div class="feedback" id="feedback">&nbsp;</div>
         </div>
-
-        <p class="hint">Press <kbd>Enter</kbd> to submit</p>
 
         <button id="quit-btn" class="btn-ghost">Quit</button>
     </div>
@@ -315,11 +316,13 @@
 
             <div class="question-card">
                 <div class="question" id="duel-question">—</div>
-                <input type="number" id="duel-input" placeholder="answer" autocomplete="off" inputmode="numeric">
+                <div class="answer-row">
+                    <input type="number" id="duel-input" placeholder="answer" autocomplete="off" inputmode="numeric">
+                    <button id="duel-submit-btn" class="btn-submit">→</button>
+                </div>
                 <div class="feedback" id="duel-feedback">&nbsp;</div>
             </div>
 
-            <p class="hint">Press <kbd>Enter</kbd> to submit</p>
             <button id="forfeit-btn" class="btn-ghost">Forfeit</button>
         </div>
 

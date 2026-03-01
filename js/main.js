@@ -344,12 +344,13 @@ const App = (() => {
     // ── Answer submission ─────────────────────────────────────────────────────
 
     function initAnswerInput() {
-        const input = document.getElementById('answer-input');
+        const input  = document.getElementById('answer-input');
+        const submit = document.getElementById('submit-btn');
 
-        input.addEventListener('keydown', e => {
-            if (e.key !== 'Enter') return;
+        function handleSubmit() {
             const value = parseInt(input.value, 10);
             if (isNaN(value)) return;
+            input.value = '';
 
             const result = Game.submitAnswer(value);
             if (!result) return;
@@ -377,9 +378,12 @@ const App = (() => {
                 stopTimers();
                 setTimeout(() => finishGame(result.state), 400);
             } else {
-                setTimeout(() => UI.showQuestion(Game.getCurrentQuestion()), 160);
+                setTimeout(() => { UI.showQuestion(Game.getCurrentQuestion()); input.focus(); }, 160);
             }
-        });
+        }
+
+        input.addEventListener('keydown',  e => { if (e.key === 'Enter') handleSubmit(); });
+        submit.addEventListener('click', handleSubmit);
     }
 
     // ── Game end ──────────────────────────────────────────────────────────────
@@ -582,14 +586,18 @@ const App = (() => {
         });
 
         // Duel answer input
-        const duelInput = document.getElementById('duel-input');
-        duelInput.addEventListener('keydown', e => {
-            if (e.key !== 'Enter') return;
+        const duelInput  = document.getElementById('duel-input');
+        const duelSubmit = document.getElementById('duel-submit-btn');
+
+        function handleDuelSubmit() {
             const val = parseInt(duelInput.value, 10);
             if (isNaN(val)) return;
             DuelClient.submitAnswer(val);
             duelInput.value = '';
-        });
+        }
+
+        duelInput.addEventListener('keydown', e => { if (e.key === 'Enter') handleDuelSubmit(); });
+        duelSubmit.addEventListener('click', handleDuelSubmit);
 
         // Socket event handlers
         DuelClient.on('connect_error', () => {
