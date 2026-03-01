@@ -12,7 +12,7 @@ const { Server } = require('socket.io');
 const cors     = require('cors');
 const { createRoom, processAnswer, DURATION } = require('./duel');
 
-const PORT = 3002;
+const PORT = process.env.PORT || 3002;
 
 const app    = express();
 const server = http.createServer(app);
