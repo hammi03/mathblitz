@@ -3,7 +3,7 @@
  * Handles push notifications. Requires HTTPS to activate.
  */
 
-const CACHE = 'mathblitz-v1';
+const CACHE = 'mathblitz-v3';
 
 // Cache core files on install
 self.addEventListener('install', event => {
@@ -11,14 +11,20 @@ self.addEventListener('install', event => {
     event.waitUntil(
         caches.open(CACHE).then(cache => cache.addAll([
             '/', '/index.html', '/css/style.css',
-            '/js/config.js', '/js/db.js', '/js/sound.js',
-            '/js/game.js', '/js/daily.js', '/js/ui.js', '/js/main.js',
-        ]).catch(() => {}))   // fail silently for file:// origins
+            '/js/config.js', '/js/bg.js', '/js/db.js', '/js/sound.js',
+            '/js/game.js', '/js/daily.js', '/js/duel-client.js',
+            '/js/ui.js', '/js/main.js',
+        ]).catch(() => {}))
     );
 });
 
 self.addEventListener('activate', event => {
-    event.waitUntil(clients.claim());
+    // Delete old caches
+    event.waitUntil(
+        caches.keys().then(keys =>
+            Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k)))
+        ).then(() => clients.claim())
+    );
 });
 
 // Serve from cache when offline
