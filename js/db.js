@@ -138,7 +138,7 @@ const DB = (() => {
         if (!_client) return [];
         const { data, error } = await _client
             .from('daily_scores')
-            .select('score, elapsed_seconds, correct, wrong, best_streak, profiles(username, total_xp)')
+            .select('score, elapsed_seconds, correct, wrong, best_streak, profiles(username)')
             .eq('date', date)
             .order('score', { ascending: false })
             .limit(limit);
@@ -189,7 +189,7 @@ const DB = (() => {
 
         let query = _client
             .from('scores')
-            .select('score, elapsed_seconds, correct, wrong, best_streak, created_at, profiles(username, total_xp)')
+            .select('score, elapsed_seconds, correct, wrong, best_streak, created_at, profiles(username)')
             .eq('mode', mode)
             .eq('difficulty', difficulty);
 

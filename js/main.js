@@ -610,10 +610,6 @@ const App = (() => {
                 const isMe     = currentUsername && username === currentUsername;
                 const medal    = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : `#${rank}`;
 
-                const totalXP  = row.profiles?.total_xp ?? 0;
-                const userRank = getRankForXP(totalXP);
-                const rankBadge = `<span class="rank-badge ${userRank.cls}" style="font-size:0.68rem;padding:0.1rem 0.35rem;">${userRank.icon}</span>`;
-
                 let primary, secondary;
                 if (lb.mode === 'sprint') {
                     primary   = row.elapsed_seconds.toFixed(2) + 's';
@@ -629,7 +625,7 @@ const App = (() => {
                 return `
                     <div class="lb-row ${isMe ? 'lb-row-me' : ''}">
                         <span class="lb-rank">${medal}</span>
-                        <span class="lb-name">${rankBadge} ${username}${isMe ? ' (you)' : ''}</span>
+                        <span class="lb-name">${username}${isMe ? ' (you)' : ''}</span>
                         <div class="lb-scores">
                             <span class="lb-primary">${primary}</span>
                             <span class="lb-secondary">${secondary}</span>
