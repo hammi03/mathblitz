@@ -12,6 +12,10 @@ const Sound = (() => {
         return ctx;
     }
 
+    function vibrate(pattern) {
+        if ('vibrate' in navigator) navigator.vibrate(pattern);
+    }
+
     function tone(freq, type, duration, gainVal = 0.22, delay = 0) {
         try {
             const c   = getCtx();
@@ -33,6 +37,7 @@ const Sound = (() => {
         if (!enabled) return;
         tone(523, 'sine', 0.1, 0.2);
         tone(784, 'sine', 0.12, 0.18, 0.09);
+        vibrate(45);
     }
 
     function wrong() {
@@ -56,6 +61,7 @@ const Sound = (() => {
         if (n === 0) {
             tone(880,  'sine', 0.18, 0.3);
             tone(1100, 'sine', 0.18, 0.25, 0.1);
+            vibrate([100, 60, 120]);
         } else {
             tone(440, 'triangle', 0.14, 0.2);
         }

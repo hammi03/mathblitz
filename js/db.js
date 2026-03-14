@@ -75,6 +75,12 @@ const DB = (() => {
             elapsed_seconds: parseFloat(elapsed),
         });
         if (error) throw error;
+
+        // Update cumulative total_xp in profile
+        const { data: pData } = await _client
+            .from('profiles').select('total_xp').eq('id', userId).single();
+        const newXP = (pData?.total_xp || 0) + gameState.score;
+        await _client.from('profiles').update({ total_xp: newXP }).eq('id', userId);
     }
 
     // ── Streaks ───────────────────────────────────────────────────────────────
@@ -132,12 +138,37 @@ const DB = (() => {
         if (!_client) return [];
         const { data, error } = await _client
             .from('daily_scores')
-            .select('score, elapsed_seconds, correct, wrong, best_streak, profiles(username)')
+            .select('score, elapsed_seconds, correct, wrong, best_streak, profiles(username, total_xp)')
             .eq('date', date)
             .order('score', { ascending: false })
             .limit(limit);
         if (error) throw error;
         return data ?? [];
+    }
+
+    // ── Community questions ───────────────────────────────────────────────────
+
+    async function getCommunityQuestions(limit = 20) {
+        if (!_client) return [];
+        const { data, error } = await _client
+            .from('community_questions')
+            .select('question_text, answer')
+            .eq('approved', true)
+            .order('created_at', { ascending: false })
+            .limit(limit);
+        if (error) return [];
+        return (data ?? []).map(q => ({ display: q.question_text, answer: q.answer }));
+    }
+
+    async function submitCommunityQuestion(userId, a, b) {
+        if (!_client) throw new Error('Supabase not configured');
+        const { error } = await _client.from('community_questions').insert({
+            submitted_by:  userId,
+            question_text: `${a} × ${b}`,
+            answer:        a * b,
+            approved:      false,
+        });
+        if (error) throw error;
     }
 
     async function hasUserCompletedDaily(userId, date) {
@@ -158,7 +189,7 @@ const DB = (() => {
 
         let query = _client
             .from('scores')
-            .select('score, elapsed_seconds, correct, wrong, best_streak, created_at, profiles(username)')
+            .select('score, elapsed_seconds, correct, wrong, best_streak, created_at, profiles(username, total_xp)')
             .eq('mode', mode)
             .eq('difficulty', difficulty);
 
@@ -179,5 +210,6 @@ const DB = (() => {
         saveScore, updateStreak,
         saveDailyScore, getDailyLeaderboard, hasUserCompletedDaily,
         getLeaderboard,
+        getCommunityQuestions, submitCommunityQuestion,
     };
 })();

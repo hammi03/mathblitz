@@ -728,6 +728,109 @@ kbd {
 #duel-input.correct { border-color: var(--green); color: var(--green); }
 #duel-input.wrong   { border-color: var(--red);   color: var(--red); }
 
+/* ── Rank badges ── */
+.rank-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.15rem;
+    font-size: 0.72rem;
+    font-weight: 700;
+    border-radius: 20px;
+    padding: 0.12rem 0.45rem;
+    border: 1px solid;
+    white-space: nowrap;
+}
+.rank-bronze { color: #cd7f32; background: rgba(205,127,50,0.12); border-color: rgba(205,127,50,0.35); }
+.rank-silver { color: #b8b8b8; background: rgba(192,192,192,0.12); border-color: rgba(192,192,192,0.35); }
+.rank-gold   { color: #ffd700; background: rgba(255,215,0,0.12);   border-color: rgba(255,215,0,0.4);   }
+
+/* ── Rank-up overlay ── */
+.rankup-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(8, 8, 16, 0.88);
+    align-items: center;
+    justify-content: center;
+    z-index: 300;
+    backdrop-filter: blur(10px);
+}
+.rankup-overlay.active { display: flex; }
+.rankup-content {
+    text-align: center;
+    animation: rankUpPop 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+.rankup-icon  { font-size: 6rem; line-height: 1; }
+.rankup-title {
+    font-size: 0.85rem;
+    font-weight: 900;
+    letter-spacing: 6px;
+    color: var(--muted);
+    margin-top: 0.6rem;
+    text-transform: uppercase;
+}
+.rankup-name {
+    font-size: 3rem;
+    font-weight: 900;
+    letter-spacing: -1px;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+@keyframes rankUpPop {
+    0%   { opacity: 0; transform: scale(0.3) rotate(-8deg); }
+    70%  { opacity: 1; transform: scale(1.08) rotate(1deg); }
+    100% { opacity: 1; transform: scale(1) rotate(0deg); }
+}
+
+/* ── History entries ── */
+.history-entry {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 0.7rem 0.9rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+.history-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+.history-mode  { font-weight: 700; font-size: 0.88rem; }
+.history-score { font-size: 1rem; font-weight: 900; color: var(--accent); }
+.history-meta  { font-size: 0.68rem; color: var(--muted); line-height: 1.4; }
+
+/* ── Submit problem modal ── */
+.submit-equation {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.6rem;
+    flex-wrap: wrap;
+}
+.submit-equation input {
+    width: 5rem;
+    padding: 0.55rem;
+    background: var(--surface2);
+    border: 2px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    font-size: 1.2rem;
+    font-weight: 700;
+    text-align: center;
+    outline: none;
+    font-family: inherit;
+    -moz-appearance: textfield;
+}
+.submit-equation input::-webkit-outer-spin-button,
+.submit-equation input::-webkit-inner-spin-button { -webkit-appearance: none; }
+.submit-equation input:focus { border-color: var(--accent); }
+.submit-op      { font-size: 1.2rem; font-weight: 900; color: var(--muted); }
+.submit-preview { font-size: 1.1rem; font-weight: 700; color: var(--accent); min-width: 4rem; }
+
 /* ── Responsive ── */
 /* ── Mobile base (all phones) ── */
 @media (max-width: 440px) {

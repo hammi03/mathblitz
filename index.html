@@ -15,6 +15,31 @@
         <div class="countdown-number" id="countdown-number">3</div>
     </div>
 
+    <!-- ── RANK-UP OVERLAY ── -->
+    <div id="rankup-overlay" class="rankup-overlay">
+        <div class="rankup-content">
+            <div class="rankup-icon" id="rankup-icon">🥈</div>
+            <div class="rankup-title">RANK UP!</div>
+            <div class="rankup-name" id="rankup-name">Silver</div>
+        </div>
+    </div>
+
+    <!-- ── SUBMIT PROBLEM MODAL ── -->
+    <div id="submit-modal" class="modal-overlay">
+        <div class="modal">
+            <h2 style="text-align:center;font-size:1rem;letter-spacing:3px;color:var(--muted);">SUBMIT A PROBLEM</h2>
+            <div class="submit-equation">
+                <input type="number" id="submit-a" placeholder="47" min="2" max="999">
+                <span class="submit-op">×</span>
+                <input type="number" id="submit-b" placeholder="83" min="2" max="999">
+                <span id="submit-preview-ans" class="submit-preview">= ?</span>
+            </div>
+            <p id="submit-msg" class="auth-error" style="text-align:center;"></p>
+            <button id="submit-confirm-btn" class="btn-primary">SUBMIT</button>
+            <button id="submit-close-btn" class="btn-ghost">Cancel</button>
+        </div>
+    </div>
+
     <!-- ── AUTH MODAL ── -->
     <div id="auth-modal" class="modal-overlay">
         <div class="modal">
@@ -73,6 +98,7 @@
             <div id="user-loggedin" class="user-info hidden">
                 <div class="user-left">
                     <span class="streak-badge" id="streak-badge" title="Day streak">🔥 <span id="streak-count">0</span></span>
+                    <span id="rank-badge" class="rank-badge hidden"></span>
                     <span id="user-display-name" class="user-name">—</span>
                 </div>
                 <button id="sign-out-btn" class="btn-ghost small">Sign Out</button>
@@ -110,6 +136,13 @@
                         <span class="mode-desc" id="daily-mode-desc">20 questions · same for everyone</span>
                     </div>
                     <span class="daily-badge hidden" id="daily-done-badge">✓</span>
+                </button>
+                <button class="mode-btn mode-community" id="community-mode-btn" data-mode="community" style="grid-column:1/-1;">
+                    <span class="mode-icon">🌐</span>
+                    <div>
+                        <span class="mode-name">Community</span>
+                        <span class="mode-desc">player-made problems · Silver+</span>
+                    </div>
                 </button>
             </div>
         </div>
@@ -150,6 +183,7 @@
             <p class="best-label">Personal best: <strong id="best-display">—</strong></p>
             <div class="menu-bottom-btns">
                 <button id="leaderboard-btn" class="btn-secondary">Leaderboard</button>
+                <button id="history-btn" class="btn-secondary">History</button>
                 <button id="notif-btn" class="btn-secondary" title="Enable daily reminders">🔔</button>
             </div>
         </div>
@@ -227,6 +261,7 @@
 
         <div class="result-actions">
             <button id="play-again-btn" class="btn-primary">PLAY AGAIN</button>
+            <button id="submit-problem-btn" class="btn-secondary hidden">🎯 Submit a Problem</button>
             <button id="menu-btn" class="btn-ghost">Menu</button>
         </div>
     </div>
@@ -269,6 +304,18 @@
 
         <div id="lb-list" class="lb-list">
             <p class="lb-empty">Loading...</p>
+        </div>
+    </div>
+
+    <!-- ── HISTORY SCREEN ── -->
+    <div id="screen-history" class="screen">
+        <div class="lb-header">
+            <button id="history-back" class="btn-ghost">← Back</button>
+            <h1 class="lb-title">History</h1>
+            <div></div>
+        </div>
+        <div id="history-list" class="lb-list">
+            <p class="lb-empty">No games yet.</p>
         </div>
     </div>
 

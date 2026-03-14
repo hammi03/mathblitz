@@ -2,6 +2,19 @@
  * main.js — App controller.
  * Wires menu, auth, countdown, game loop, results, leaderboard, daily, streaks.
  */
+
+// ── Rank system (global so ui.js leaderboard rendering can access) ─────────
+const RANKS = [
+    { name: 'Bronze', icon: '🥉', min: 0,    cls: 'rank-bronze' },
+    { name: 'Silver', icon: '🥈', min: 1000, cls: 'rank-silver' },
+    { name: 'Gold',   icon: '🥇', min: 5000, cls: 'rank-gold'   },
+];
+function getRankForXP(xp) {
+    let r = RANKS[0];
+    for (const rk of RANKS) if (xp >= rk.min) r = rk;
+    return r;
+}
+
 const App = (() => {
 
     let settings = {
@@ -19,6 +32,39 @@ const App = (() => {
     let countdownActive = false;
 
     const lb = { mode: 'classic', difficulty: 'medium', timeLimit: 60 };
+
+    // ── XP & Rank helpers ─────────────────────────────────────────────────────
+
+    function getTotalXP()    { return parseInt(localStorage.getItem('mathblitz_total_xp') || '0', 10); }
+    function addXP(pts)      { const n = getTotalXP() + pts; localStorage.setItem('mathblitz_total_xp', n); return n; }
+    function canSubmit(xp)   { return xp >= RANKS[1].min; }  // Silver+
+
+    function updateRankBadge(xp) {
+        const badge = document.getElementById('rank-badge');
+        if (!currentUser) { badge.classList.add('hidden'); return; }
+        const rank = getRankForXP(xp);
+        badge.textContent = `${rank.icon} ${rank.name}`;
+        badge.className   = `rank-badge ${rank.cls}`;
+    }
+
+    // ── History helpers ───────────────────────────────────────────────────────
+
+    function saveGameHistory(state, elapsed) {
+        const key  = 'mathblitz_history';
+        const hist = JSON.parse(localStorage.getItem(key) || '[]');
+        hist.unshift({
+            ts:      Date.now(),
+            mode:    state.mode,
+            diff:    state.difficulty,
+            score:   state.score,
+            correct: state.correct,
+            wrong:   state.wrong,
+            streak:  state.bestStreak,
+            elapsed: parseFloat(elapsed),
+        });
+        if (hist.length > 20) hist.pop();
+        localStorage.setItem(key, JSON.stringify(hist));
+    }
 
     // ── Local storage ─────────────────────────────────────────────────────────
 
@@ -127,6 +173,7 @@ const App = (() => {
         document.getElementById('user-guest').classList.toggle('hidden', !!currentUser);
         document.getElementById('user-loggedin').classList.toggle('hidden', !currentUser);
         if (currentUser) document.getElementById('user-display-name').textContent = currentUsername;
+        updateRankBadge(getTotalXP());
         refreshBest();
     }
 
@@ -146,7 +193,11 @@ const App = (() => {
     function initMenu() {
         document.querySelectorAll('.mode-btn').forEach(btn => {
             btn.addEventListener('click', () => {
-                if (btn.id === 'daily-mode-btn' && Daily.hasCompletedToday()) return;
+                if (btn.id === 'daily-mode-btn'     && Daily.hasCompletedToday()) return;
+                if (btn.id === 'community-mode-btn' && !DB.isConfigured) {
+                    alert('Community mode needs Supabase configured in js/config.js.');
+                    return;
+                }
                 document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
                 btn.classList.add('active');
                 settings.mode = btn.dataset.mode;
@@ -175,6 +226,7 @@ const App = (() => {
 
         document.getElementById('start-btn').addEventListener('click', startGame);
         document.getElementById('leaderboard-btn').addEventListener('click', showLeaderboard);
+        document.getElementById('history-btn').addEventListener('click', showHistory);
         document.getElementById('notif-btn').addEventListener('click', requestNotificationPermission);
 
         // Daily mode setup
@@ -194,11 +246,9 @@ const App = (() => {
     }
 
     function updateTimeSectionVisibility() {
-        const isClassic = settings.mode === 'classic';
-        const isDaily   = settings.mode === 'daily';
-        // Hide entire settings row (difficulty + time) for daily — it's fixed for everyone
-        document.getElementById('settings-row').classList.toggle('hidden', isDaily);
-        // Within the row, also hide time for non-classic modes
+        const isClassic   = settings.mode === 'classic';
+        const hideSettings = settings.mode === 'daily' || settings.mode === 'community';
+        document.getElementById('settings-row').classList.toggle('hidden', hideSettings);
         document.getElementById('time-section').classList.toggle('hidden', !isClassic);
     }
 
@@ -310,6 +360,9 @@ const App = (() => {
         const gameSettings = { ...settings };
         if (settings.mode === 'daily') {
             gameSettings.predefinedQuestions = Daily.generateQuestions();
+        } else if (settings.mode === 'community') {
+            const qs = await DB.getCommunityQuestions(20);
+            gameSettings.predefinedQuestions = qs.length ? qs : Daily.generateQuestions();
         }
 
         const state = Game.start(gameSettings);
@@ -319,7 +372,7 @@ const App = (() => {
         if (settings.mode === 'classic') {
             UI.updateTimer(state.timeLeft, state.totalTime);
             startClassicTimer(state.totalTime);
-        } else if (settings.mode === 'sprint' || settings.mode === 'daily') {
+        } else if (settings.mode === 'sprint' || settings.mode === 'daily' || settings.mode === 'community') {
             const total = state.totalQuestions;
             UI.updateSprintProgress(0, total);
         } else {
@@ -369,7 +422,7 @@ const App = (() => {
             UI.updateHUD(result.state);
             if (result.leveledUp) UI.flashLevelUp(result.state.level);
 
-            const isCountable = settings.mode === 'sprint' || settings.mode === 'daily';
+            const isCountable = settings.mode === 'sprint' || settings.mode === 'daily' || settings.mode === 'community';
             if (isCountable) {
                 UI.updateSprintProgress(result.state.questionIdx, result.state.totalQuestions);
             }
@@ -390,6 +443,25 @@ const App = (() => {
 
     async function finishGame(state) {
         const elapsed = Game.elapsedSeconds();
+
+        // Save to local history (all modes)
+        saveGameHistory(state, elapsed);
+
+        // XP tracking (all modes except zen)
+        if (state.mode !== 'zen') {
+            const oldXP  = getTotalXP();
+            const newXP  = addXP(state.score);
+            const oldRank = getRankForXP(oldXP);
+            const newRank = getRankForXP(newXP);
+            if (newRank.name !== oldRank.name) {
+                setTimeout(() => UI.showRankUp(oldRank, newRank), 600);
+            }
+            updateRankBadge(newXP);
+            // Show submit button for Silver+ users
+            document.getElementById('submit-problem-btn').classList.toggle('hidden', !canSubmit(newXP));
+        } else {
+            document.getElementById('submit-problem-btn').classList.add('hidden');
+        }
 
         // Daily mode — special handling
         if (state.mode === 'daily') {
@@ -414,11 +486,17 @@ const App = (() => {
                 saveEl.style.color = 'var(--muted)';
             }
 
-            // Update streak
             if (currentUser) {
                 const streak = await DB.updateStreak(currentUser.id);
                 if (streak) updateStreakDisplay(streak.current);
             }
+            return;
+        }
+
+        // Community mode — show results, no leaderboard save
+        if (state.mode === 'community') {
+            UI.showResults(state, elapsed, false);
+            document.getElementById('save-status').textContent = '';
             return;
         }
 
@@ -532,6 +610,10 @@ const App = (() => {
                 const isMe     = currentUsername && username === currentUsername;
                 const medal    = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : `#${rank}`;
 
+                const totalXP  = row.profiles?.total_xp ?? 0;
+                const userRank = getRankForXP(totalXP);
+                const rankBadge = `<span class="rank-badge ${userRank.cls}" style="font-size:0.68rem;padding:0.1rem 0.35rem;">${userRank.icon}</span>`;
+
                 let primary, secondary;
                 if (lb.mode === 'sprint') {
                     primary   = row.elapsed_seconds.toFixed(2) + 's';
@@ -547,7 +629,7 @@ const App = (() => {
                 return `
                     <div class="lb-row ${isMe ? 'lb-row-me' : ''}">
                         <span class="lb-rank">${medal}</span>
-                        <span class="lb-name">${username}${isMe ? ' (you)' : ''}</span>
+                        <span class="lb-name">${rankBadge} ${username}${isMe ? ' (you)' : ''}</span>
                         <div class="lb-scores">
                             <span class="lb-primary">${primary}</span>
                             <span class="lb-secondary">${secondary}</span>
@@ -730,6 +812,66 @@ const App = (() => {
         DuelClient.findMatch(currentUsername);
     }
 
+    // ── History ───────────────────────────────────────────────────────────────
+
+    function showHistory() {
+        const hist = JSON.parse(localStorage.getItem('mathblitz_history') || '[]');
+        UI.renderHistory(hist);
+        UI.showScreen('history');
+    }
+
+    function initHistory() {
+        document.getElementById('history-back').addEventListener('click', () => UI.showScreen('menu'));
+    }
+
+    // ── Submit Problem ────────────────────────────────────────────────────────
+
+    function initSubmitProblem() {
+        const modal  = document.getElementById('submit-modal');
+        const aInput = document.getElementById('submit-a');
+        const bInput = document.getElementById('submit-b');
+        const prev   = document.getElementById('submit-preview-ans');
+        const msgEl  = document.getElementById('submit-msg');
+
+        function updatePreview() {
+            const a = parseInt(aInput.value, 10);
+            const b = parseInt(bInput.value, 10);
+            prev.textContent = (!isNaN(a) && !isNaN(b)) ? `= ${a * b}` : '= ?';
+        }
+        aInput.addEventListener('input', updatePreview);
+        bInput.addEventListener('input', updatePreview);
+
+        document.getElementById('submit-problem-btn').addEventListener('click', () => {
+            if (!currentUser) { openAuthModal(); return; }
+            aInput.value = ''; bInput.value = ''; prev.textContent = '= ?'; msgEl.textContent = '';
+            modal.classList.add('active');
+            aInput.focus();
+        });
+
+        document.getElementById('submit-close-btn').addEventListener('click', () => modal.classList.remove('active'));
+
+        document.getElementById('submit-confirm-btn').addEventListener('click', async () => {
+            const a = parseInt(aInput.value, 10);
+            const b = parseInt(bInput.value, 10);
+            if (isNaN(a) || isNaN(b) || a < 2 || b < 2 || a > 999 || b > 999) {
+                msgEl.style.color = 'var(--red)';
+                msgEl.textContent = 'Both numbers must be between 2 and 999.';
+                return;
+            }
+            msgEl.style.color = 'var(--muted)';
+            msgEl.textContent = 'Submitting...';
+            try {
+                await DB.submitCommunityQuestion(currentUser.id, a, b);
+                msgEl.style.color = 'var(--green)';
+                msgEl.textContent = 'Submitted! It will appear after review ✓';
+                setTimeout(() => modal.classList.remove('active'), 1800);
+            } catch (e) {
+                msgEl.style.color = 'var(--red)';
+                msgEl.textContent = e.message;
+            }
+        });
+    }
+
     // ── Navigation ────────────────────────────────────────────────────────────
 
     function initNav() {
@@ -739,8 +881,8 @@ const App = (() => {
             refreshBest();
         });
         document.getElementById('play-again-btn').addEventListener('click', () => {
-            // Don't allow replay of daily
-            if (settings.mode === 'daily') { UI.showScreen('menu'); return; }
+            // Don't allow replay of daily or community
+            if (settings.mode === 'daily' || settings.mode === 'community') { UI.showScreen('menu'); return; }
             startGame();
         });
         document.getElementById('menu-btn').addEventListener('click', () => {
@@ -767,7 +909,10 @@ const App = (() => {
         initDuel();
         initThemes();
         initServiceWorker();
+        initHistory();
+        initSubmitProblem();
         updateTimeSectionVisibility();
+        updateRankBadge(getTotalXP());
         refreshBest();
         UI.showScreen('menu');
 

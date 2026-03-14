@@ -10,6 +10,7 @@ const UI = (() => {
         results:     document.getElementById('screen-results'),
         leaderboard: document.getElementById('screen-leaderboard'),
         duel:        document.getElementById('screen-duel'),
+        history:     document.getElementById('screen-history'),
     };
 
     // ── Screens ───────────────────────────────────────────────────────────────
@@ -144,6 +145,45 @@ const UI = (() => {
         document.getElementById('best-display').textContent = value;
     }
 
+    // ── Rank-up overlay ───────────────────────────────────────────────────────
+
+    function showRankUp(oldRank, newRank) {
+        const overlay = document.getElementById('rankup-overlay');
+        document.getElementById('rankup-icon').textContent = newRank.icon;
+        document.getElementById('rankup-name').textContent = newRank.name;
+        overlay.classList.add('active');
+        setTimeout(() => overlay.classList.remove('active'), 2800);
+    }
+
+    // ── History screen ────────────────────────────────────────────────────────
+
+    const MODE_LABEL = { classic: '⚡ Classic', sprint: '🏁 Sprint', zen: '∞ Zen', daily: '📅 Daily', community: '🌐 Community' };
+    const DIFF_LABEL = { easy: '💀', medium: '💀💀', hard: '💀💀💀' };
+
+    function renderHistory(entries) {
+        const list = document.getElementById('history-list');
+        if (!entries.length) {
+            list.innerHTML = '<p class="lb-empty">No games yet.</p>';
+            return;
+        }
+        list.innerHTML = entries.map(e => {
+            const date    = new Date(e.ts).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+            const mode    = MODE_LABEL[e.mode] ?? e.mode;
+            const diff    = DIFF_LABEL[e.diff] ?? '';
+            const elapsed = e.mode === 'sprint' ? ` · ${e.elapsed}s` : '';
+            const total   = e.correct + e.wrong;
+            const acc     = total > 0 ? Math.round((e.correct / total) * 100) : 0;
+            return `
+                <div class="history-entry">
+                    <div class="history-header">
+                        <span class="history-mode">${mode} ${diff}</span>
+                        <span class="history-score">${e.score} pts</span>
+                    </div>
+                    <span class="history-meta">${e.correct}✓ ${e.wrong}✗ · ${acc}% · streak ×${e.streak}${elapsed} · ${date}</span>
+                </div>`;
+        }).join('');
+    }
+
     return {
         showScreen,
         updateHUD,
@@ -155,5 +195,7 @@ const UI = (() => {
         showResults,
         updateBestDisplay,
         flashLevelUp,
+        showRankUp,
+        renderHistory,
     };
 })();
