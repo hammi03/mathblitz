@@ -37,9 +37,10 @@ const Game = (() => {
             questionIdx: 0,
             totalQuestions: predefined ? predefined.length : (settings.mode === 'sprint' ? SPRINT_QUESTIONS : null),
             predefined,
-            currentQ:    null,
-            startTime:   Date.now(),
-            active:      false,
+            currentQ:          null,
+            answeredQuestions: [],
+            startTime:         Date.now(),
+            active:            false,
         };
     }
 
@@ -114,6 +115,15 @@ const Game = (() => {
         } else {
             state.streak = 0;
             state.wrong++;
+        }
+
+        if (state.answeredQuestions.length < 30) {
+            state.answeredQuestions.push({
+                display: state.currentQ.display,
+                answer:  state.currentQ.answer,
+                given:   userAnswer,
+                correct: isCorrect,
+            });
         }
 
         state.questionIdx++;

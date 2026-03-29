@@ -67,10 +67,15 @@ const Sound = (() => {
         }
     }
 
+    function gameStart() {
+        if (!enabled) return;
+        vibrate([80, 40, 80, 40, 160]);
+    }
+
     function toggle() {
         enabled = !enabled;
         return enabled;
     }
 
-    return { correct, wrong, streakMilestone, countdown, toggle };
+    return { correct, wrong, streakMilestone, countdown, gameStart, toggle };
 })();

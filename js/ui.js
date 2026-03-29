@@ -166,22 +166,48 @@ const UI = (() => {
             list.innerHTML = '<p class="lb-empty">No games yet.</p>';
             return;
         }
-        list.innerHTML = entries.map(e => {
+        list.innerHTML = entries.map((e, i) => {
             const date    = new Date(e.ts).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
             const mode    = MODE_LABEL[e.mode] ?? e.mode;
             const diff    = DIFF_LABEL[e.diff] ?? '';
             const elapsed = e.mode === 'sprint' ? ` · ${e.elapsed}s` : '';
             const total   = e.correct + e.wrong;
             const acc     = total > 0 ? Math.round((e.correct / total) * 100) : 0;
+
+            const qaHtml = e.questions && e.questions.length
+                ? `<div class="history-qa">` +
+                  e.questions.map(q =>
+                      `<div class="history-qa-item ${q.correct ? 'correct-q' : 'wrong-q'}">
+                          <span>${q.display}</span>
+                          <span>${q.correct ? '✓ ' + q.answer : '✗ ' + q.given + ' → ' + q.answer}</span>
+                       </div>`
+                  ).join('') +
+                  `</div>`
+                : '';
+
+            const toggleBtn = e.questions && e.questions.length
+                ? `<button class="history-toggle" data-idx="${i}">▼ Questions</button>`
+                : '';
+
             return `
-                <div class="history-entry">
+                <div class="history-entry" data-idx="${i}">
                     <div class="history-header">
                         <span class="history-mode">${mode} ${diff}</span>
                         <span class="history-score">${e.score} pts</span>
                     </div>
                     <span class="history-meta">${e.correct}✓ ${e.wrong}✗ · ${acc}% · streak ×${e.streak}${elapsed} · ${date}</span>
+                    ${toggleBtn}
+                    ${qaHtml}
                 </div>`;
         }).join('');
+
+        list.querySelectorAll('.history-toggle').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const entry = btn.closest('.history-entry');
+                const open  = entry.classList.toggle('expanded');
+                btn.textContent = open ? '▲ Questions' : '▼ Questions';
+            });
+        });
     }
 
     return {

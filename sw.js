@@ -1,9 +1,9 @@
 /**
- * sw.js — MathBlitz Service Worker
+ * sw.js — QuantQuiz Service Worker
  * Handles push notifications. Requires HTTPS to activate.
  */
 
-const CACHE = 'mathblitz-v3';
+const CACHE = 'quantquiz-v3';
 
 // Cache core files on install
 self.addEventListener('install', event => {
@@ -38,7 +38,7 @@ self.addEventListener('fetch', event => {
 self.addEventListener('push', event => {
     const data = event.data?.json() ?? {};
     event.waitUntil(
-        self.registration.showNotification(data.title || 'MathBlitz', {
+        self.registration.showNotification(data.title || 'QuantQuiz', {
             body:    data.body  || "Your daily challenge is ready! Can you top the leaderboard today? 🧠",
             icon:    '/icon.png',
             badge:   '/icon.png',

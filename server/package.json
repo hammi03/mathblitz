@@ -1,7 +1,7 @@
 {
-  "name": "mathblitz-server",
+  "name": "quantquiz-server",
   "version": "1.0.0",
-  "description": "MathBlitz real-time duel server",
+  "description": "QuantQuiz real-time duel server",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",

@@ -5,9 +5,10 @@
 
 // ── Rank system (global so ui.js leaderboard rendering can access) ─────────
 const RANKS = [
-    { name: 'Bronze', icon: '🥉', min: 0,    cls: 'rank-bronze' },
-    { name: 'Silver', icon: '🥈', min: 1000, cls: 'rank-silver' },
-    { name: 'Gold',   icon: '🥇', min: 5000, cls: 'rank-gold'   },
+    { name: 'Bronze',    icon: '🥉', min: 0,    cls: 'rank-bronze'  },
+    { name: 'Silver I',  icon: '🥈', min: 1000, cls: 'rank-silver'  },
+    { name: 'Silver II', icon: '🥈', min: 2500, cls: 'rank-silver2' },
+    { name: 'Gold',      icon: '🥇', min: 5000, cls: 'rank-gold'    },
 ];
 function getRankForXP(xp) {
     let r = RANKS[0];
@@ -35,9 +36,9 @@ const App = (() => {
 
     // ── XP & Rank helpers ─────────────────────────────────────────────────────
 
-    function getTotalXP()    { return parseInt(localStorage.getItem('mathblitz_total_xp') || '0', 10); }
-    function addXP(pts)      { const n = getTotalXP() + pts; localStorage.setItem('mathblitz_total_xp', n); return n; }
-    function canSubmit(xp)   { return xp >= RANKS[1].min; }  // Silver+
+    function getTotalXP()    { return parseInt(localStorage.getItem('quantquiz_total_xp') || '0', 10); }
+    function addXP(pts)      { const n = getTotalXP() + pts; localStorage.setItem('quantquiz_total_xp', n); return n; }
+    function canSubmit(xp)   { return xp >= RANKS[2].min; }  // Silver II+
 
     function updateRankBadge(xp) {
         const badge = document.getElementById('rank-badge');
@@ -50,17 +51,18 @@ const App = (() => {
     // ── History helpers ───────────────────────────────────────────────────────
 
     function saveGameHistory(state, elapsed) {
-        const key  = 'mathblitz_history';
+        const key  = 'quantquiz_history';
         const hist = JSON.parse(localStorage.getItem(key) || '[]');
         hist.unshift({
-            ts:      Date.now(),
-            mode:    state.mode,
-            diff:    state.difficulty,
-            score:   state.score,
-            correct: state.correct,
-            wrong:   state.wrong,
-            streak:  state.bestStreak,
-            elapsed: parseFloat(elapsed),
+            ts:        Date.now(),
+            mode:      state.mode,
+            diff:      state.difficulty,
+            score:     state.score,
+            correct:   state.correct,
+            wrong:     state.wrong,
+            streak:    state.bestStreak,
+            elapsed:   parseFloat(elapsed),
+            questions: state.answeredQuestions ?? [],
         });
         if (hist.length > 20) hist.pop();
         localStorage.setItem(key, JSON.stringify(hist));
@@ -70,8 +72,8 @@ const App = (() => {
 
     function storageKey(mode, diff, time) {
         return mode === 'classic'
-            ? `mathblitz_best_${mode}_${diff}_${time}s`
-            : `mathblitz_best_${mode}_${diff}`;
+            ? `quantquiz_best_${mode}_${diff}_${time}s`
+            : `quantquiz_best_${mode}_${diff}`;
     }
     function getBest(mode, diff, time) {
         const v = localStorage.getItem(storageKey(mode, diff, time));
@@ -270,12 +272,12 @@ const App = (() => {
 
     function initThemes() {
         ThemeBG.init();
-        const saved = localStorage.getItem('mathblitz_theme') || 'void';
+        const saved = localStorage.getItem('quantquiz_theme') || 'void';
         applyTheme(saved);
         document.querySelectorAll('.theme-dot').forEach(btn => {
             btn.addEventListener('click', () => {
                 applyTheme(btn.dataset.theme);
-                localStorage.setItem('mathblitz_theme', btn.dataset.theme);
+                localStorage.setItem('quantquiz_theme', btn.dataset.theme);
             });
         });
     }
@@ -301,7 +303,7 @@ const App = (() => {
             btn.textContent = '🔔✓';
             btn.style.color = 'var(--green)';
             // Show a test notification
-            new Notification('MathBlitz', {
+            new Notification('QuantQuiz', {
                 body: "Notifications enabled! We'll remind you about the daily challenge.",
                 icon: '/icon.png',
             });
@@ -365,6 +367,7 @@ const App = (() => {
             gameSettings.predefinedQuestions = qs.length ? qs : Daily.generateQuestions();
         }
 
+        Sound.gameStart();
         const state = Game.start(gameSettings);
         UI.updateHUD(state);
         UI.showQuestion(Game.getCurrentQuestion());
@@ -536,7 +539,8 @@ const App = (() => {
             alert('Fill in js/config.js with your Supabase credentials first.');
             return;
         }
-        lb.mode = settings.mode === 'daily' ? 'daily' : settings.mode;
+        const validLbModes = ['global', 'classic', 'sprint', 'daily'];
+        lb.mode = validLbModes.includes(settings.mode) ? settings.mode : 'classic';
         lb.difficulty = settings.difficulty;
         lb.timeLimit  = settings.timeLimit;
         syncLbFilterUI();
@@ -552,7 +556,7 @@ const App = (() => {
         document.querySelectorAll('[data-lb-time]').forEach(b =>
             b.classList.toggle('active', parseInt(b.dataset.lbTime) === lb.timeLimit));
         const showTime = lb.mode === 'classic';
-        const showDiff = lb.mode !== 'daily';
+        const showDiff = lb.mode !== 'daily' && lb.mode !== 'global';
         document.getElementById('lb-time-section').classList.toggle('hidden', !showTime);
         document.querySelectorAll('[data-lb-diff]').forEach(b =>
             b.closest('.section')?.classList.toggle('hidden', !showDiff));
@@ -595,9 +599,14 @@ const App = (() => {
         list.innerHTML = '<p class="lb-empty">Loading...</p>';
 
         try {
-            const rows = lb.mode === 'daily'
-                ? await DB.getDailyLeaderboard(Daily.getTodayISO())
-                : await DB.getLeaderboard(lb.mode, lb.difficulty, lb.timeLimit);
+            let rows;
+            if (lb.mode === 'global') {
+                rows = await DB.getGlobalLeaderboard();
+            } else if (lb.mode === 'daily') {
+                rows = await DB.getDailyLeaderboard(Daily.getTodayISO());
+            } else {
+                rows = await DB.getLeaderboard(lb.mode, lb.difficulty, lb.timeLimit);
+            }
 
             if (rows.length === 0) {
                 list.innerHTML = '<p class="lb-empty">No scores yet. Be the first!</p>';
@@ -605,13 +614,20 @@ const App = (() => {
             }
 
             list.innerHTML = rows.map((row, i) => {
-                const username = row.profiles?.username ?? 'anonymous';
-                const rank     = i + 1;
-                const isMe     = currentUsername && username === currentUsername;
-                const medal    = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : `#${rank}`;
+                const username  = lb.mode === 'global'
+                    ? (row.username ?? 'anonymous')
+                    : (row.profiles?.username ?? 'anonymous');
+                const pos       = i + 1;
+                const isMe      = currentUsername && username === currentUsername;
+                const medal     = pos === 1 ? '🥇' : pos === 2 ? '🥈' : pos === 3 ? '🥉' : `#${pos}`;
 
-                let primary, secondary;
-                if (lb.mode === 'sprint') {
+                let primary, secondary, rankBadge = '';
+                if (lb.mode === 'global') {
+                    const r  = getRankForXP(row.total_xp ?? 0);
+                    rankBadge = `<span class="rank-badge ${r.cls}" style="font-size:0.62rem;margin-left:0.3rem">${r.icon} ${r.name}</span>`;
+                    primary   = (row.total_xp ?? 0) + ' XP';
+                    secondary = `streak ${row.current_streak ?? 0} days`;
+                } else if (lb.mode === 'sprint') {
                     primary   = row.elapsed_seconds.toFixed(2) + 's';
                     secondary = `${row.correct}/10 correct`;
                 } else if (lb.mode === 'daily') {
@@ -625,13 +641,19 @@ const App = (() => {
                 return `
                     <div class="lb-row ${isMe ? 'lb-row-me' : ''}">
                         <span class="lb-rank">${medal}</span>
-                        <span class="lb-name">${username}${isMe ? ' (you)' : ''}</span>
+                        <span class="lb-name">
+                            <span class="lb-name-link" data-username="${username}">${username}${isMe ? ' (you)' : ''}</span>${rankBadge}
+                        </span>
                         <div class="lb-scores">
                             <span class="lb-primary">${primary}</span>
                             <span class="lb-secondary">${secondary}</span>
                         </div>
                     </div>`;
             }).join('');
+
+            list.querySelectorAll('.lb-name-link').forEach(el => {
+                el.addEventListener('click', () => showProfile(el.dataset.username));
+            });
         } catch (e) {
             list.innerHTML = `<p class="lb-empty" style="color:var(--red)">Failed to load: ${e.message}</p>`;
         }
@@ -796,6 +818,27 @@ const App = (() => {
         });
 
         DuelClient.on('match_cancelled', () => UI.showScreen('menu'));
+
+        DuelClient.on('reaction', ({ emoji }) => {
+            spawnReaction(emoji);
+        });
+
+        document.querySelectorAll('.reaction-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                DuelClient.sendReaction(btn.dataset.emoji);
+            });
+        });
+    }
+
+    function spawnReaction(emoji) {
+        const overlay = document.getElementById('reaction-overlay');
+        const el      = document.createElement('div');
+        el.className  = 'reaction-float';
+        el.textContent = emoji;
+        el.style.left  = `${20 + Math.random() * 60}%`;
+        el.style.top   = `${30 + Math.random() * 30}%`;
+        overlay.appendChild(el);
+        el.addEventListener('animationend', () => el.remove());
     }
 
     function startDuelSearch() {
@@ -811,13 +854,62 @@ const App = (() => {
     // ── History ───────────────────────────────────────────────────────────────
 
     function showHistory() {
-        const hist = JSON.parse(localStorage.getItem('mathblitz_history') || '[]');
+        const hist = JSON.parse(localStorage.getItem('quantquiz_history') || '[]');
         UI.renderHistory(hist);
         UI.showScreen('history');
     }
 
     function initHistory() {
         document.getElementById('history-back').addEventListener('click', () => UI.showScreen('menu'));
+    }
+
+    // ── Share ─────────────────────────────────────────────────────────────────
+
+    function initShare() {
+        document.getElementById('share-btn').addEventListener('click', () => {
+            const score   = document.getElementById('res-score').textContent;
+            const correct = document.getElementById('res-correct').textContent;
+            const acc     = document.getElementById('res-accuracy').textContent;
+            const mode    = settings.mode.charAt(0).toUpperCase() + settings.mode.slice(1);
+            const text    = `QuantQuiz ${mode} — ${score} pts | ${correct} correct | ${acc} accuracy\nPlay at https://mathblitz-jade.vercel.app`;
+
+            if (navigator.share) {
+                navigator.share({ title: 'QuantQuiz', text }).catch(() => {});
+            } else {
+                navigator.clipboard.writeText(text).then(() => {
+                    const btn = document.getElementById('share-btn');
+                    btn.textContent = 'Copied!';
+                    setTimeout(() => { btn.textContent = '↗ Share'; }, 2000);
+                });
+            }
+        });
+    }
+
+    // ── Profile modal ─────────────────────────────────────────────────────────
+
+    function initProfileModal() {
+        document.getElementById('profile-close-btn').addEventListener('click', () => {
+            document.getElementById('profile-modal').classList.remove('active');
+        });
+    }
+
+    async function showProfile(username) {
+        document.getElementById('profile-username').textContent = username;
+        document.getElementById('profile-xp').textContent      = '...';
+        document.getElementById('profile-streak').textContent  = '...';
+        document.getElementById('profile-longest').textContent = '...';
+        document.getElementById('profile-rank').innerHTML      = '';
+        document.getElementById('profile-modal').classList.add('active');
+
+        const data = await DB.getUserProfileByUsername(username);
+        if (!data) return;
+
+        const rank = getRankForXP(data.total_xp ?? 0);
+        document.getElementById('profile-xp').textContent      = data.total_xp ?? 0;
+        document.getElementById('profile-streak').textContent  = data.current_streak ?? 0;
+        document.getElementById('profile-longest').textContent = data.longest_streak ?? 0;
+        document.getElementById('profile-rank').innerHTML =
+            `<span class="rank-badge ${rank.cls}">${rank.icon} ${rank.name}</span>`;
     }
 
     // ── Submit Problem ────────────────────────────────────────────────────────
@@ -907,6 +999,8 @@ const App = (() => {
         initServiceWorker();
         initHistory();
         initSubmitProblem();
+        initShare();
+        initProfileModal();
         updateTimeSectionVisibility();
         updateRankBadge(getTotalXP());
         refreshBest();

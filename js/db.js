@@ -204,12 +204,33 @@ const DB = (() => {
         return data ?? [];
     }
 
+    async function getGlobalLeaderboard(limit = 25) {
+        if (!_client) return [];
+        const { data, error } = await _client
+            .from('profiles')
+            .select('username, total_xp, current_streak, longest_streak')
+            .order('total_xp', { ascending: false })
+            .limit(limit);
+        if (error) throw error;
+        return data ?? [];
+    }
+
+    async function getUserProfileByUsername(username) {
+        if (!_client) return null;
+        const { data } = await _client
+            .from('profiles')
+            .select('username, total_xp, current_streak, longest_streak')
+            .eq('username', username)
+            .single();
+        return data;
+    }
+
     return {
         isConfigured: SUPABASE_CONFIGURED,
         signUp, signIn, signOut, getUser, getProfile, onAuthChange,
         saveScore, updateStreak,
         saveDailyScore, getDailyLeaderboard, hasUserCompletedDaily,
-        getLeaderboard,
+        getLeaderboard, getGlobalLeaderboard, getUserProfileByUsername,
         getCommunityQuestions, submitCommunityQuestion,
     };
 })();

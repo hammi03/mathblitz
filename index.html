@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <title>MathBlitz</title>
+    <title>QuantQuiz</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700;800;900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="css/style.css">
@@ -13,6 +13,35 @@
     <!-- ── COUNTDOWN OVERLAY ── -->
     <div id="countdown-overlay" class="countdown-overlay">
         <div class="countdown-number" id="countdown-number">3</div>
+    </div>
+
+    <!-- ── REACTION OVERLAY ── -->
+    <div id="reaction-overlay" class="reaction-overlay"></div>
+
+    <!-- ── PROFILE MODAL ── -->
+    <div id="profile-modal" class="modal-overlay">
+        <div class="modal">
+            <h2 style="text-align:center;font-size:1rem;letter-spacing:3px;color:var(--muted);">PROFILE</h2>
+            <div class="profile-body">
+                <div class="profile-username" id="profile-username">—</div>
+                <div class="profile-rank" id="profile-rank"></div>
+                <div class="profile-stats">
+                    <div class="profile-stat">
+                        <span class="stat-label">Total XP</span>
+                        <span class="stat-value" id="profile-xp">0</span>
+                    </div>
+                    <div class="profile-stat">
+                        <span class="stat-label">Streak</span>
+                        <span class="stat-value" id="profile-streak">0</span>
+                    </div>
+                    <div class="profile-stat">
+                        <span class="stat-label">Best Streak</span>
+                        <span class="stat-value" id="profile-longest">0</span>
+                    </div>
+                </div>
+            </div>
+            <button id="profile-close-btn" class="btn-ghost">Close</button>
+        </div>
     </div>
 
     <!-- ── RANK-UP OVERLAY ── -->
@@ -85,7 +114,7 @@
     <!-- ── MENU SCREEN ── -->
     <div id="screen-menu" class="screen active">
         <div class="logo">
-            <h1>MathBlitz</h1>
+            <h1>QuantQuiz</h1>
             <p>Sharpen your mind. Beat the clock. Crush the competition.</p>
         </div>
 
@@ -261,7 +290,10 @@
 
         <div class="result-actions">
             <button id="play-again-btn" class="btn-primary">PLAY AGAIN</button>
-            <button id="submit-problem-btn" class="btn-secondary hidden">🎯 Submit a Problem</button>
+            <div class="result-actions-row">
+                <button id="share-btn" class="btn-secondary">↗ Share</button>
+                <button id="submit-problem-btn" class="btn-secondary hidden">🎯 Submit a Problem</button>
+            </div>
             <button id="menu-btn" class="btn-ghost">Menu</button>
         </div>
     </div>
@@ -277,9 +309,9 @@
         <div class="section">
             <h2>Mode</h2>
             <div class="pill-row">
+                <button class="pill-btn" data-lb-mode="global">🌍 Global</button>
                 <button class="pill-btn active" data-lb-mode="classic">Classic</button>
                 <button class="pill-btn" data-lb-mode="sprint">Sprint</button>
-                <button class="pill-btn" data-lb-mode="zen">Zen</button>
                 <button class="pill-btn" data-lb-mode="daily">Daily</button>
             </div>
         </div>
@@ -370,6 +402,12 @@
                 <div class="feedback" id="duel-feedback">&nbsp;</div>
             </div>
 
+            <div class="reaction-bar">
+                <button class="reaction-btn" data-emoji="🔥">🔥</button>
+                <button class="reaction-btn" data-emoji="😂">😂</button>
+                <button class="reaction-btn" data-emoji="💀">💀</button>
+                <button class="reaction-btn" data-emoji="🤯">🤯</button>
+            </div>
             <button id="forfeit-btn" class="btn-ghost">Forfeit</button>
         </div>
 

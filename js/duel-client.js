@@ -28,7 +28,7 @@ const DuelClient = (() => {
         const events = [
             'searching', 'matched', 'countdown', 'duel_start',
             'answer_result', 'opponent_update', 'timer_tick',
-            'duel_end', 'match_cancelled',
+            'duel_end', 'match_cancelled', 'reaction',
         ];
         events.forEach(e => socket.on(e, data => _dispatch(e, data)));
 
@@ -47,9 +47,10 @@ const DuelClient = (() => {
         socket.emit('find_match', { username });
     }
 
-    function cancelMatch()        { socket?.emit('cancel_match'); }
-    function submitAnswer(answer) { socket?.emit('submit_answer', { answer }); }
-    function forfeit()            { socket?.emit('forfeit'); disconnect(); }
+    function cancelMatch()         { socket?.emit('cancel_match'); }
+    function submitAnswer(answer)  { socket?.emit('submit_answer', { answer }); }
+    function forfeit()             { socket?.emit('forfeit'); disconnect(); }
+    function sendReaction(emoji)   { socket?.emit('send_reaction', { emoji }); }
 
-    return { on, connect, disconnect, findMatch, cancelMatch, submitAnswer, forfeit };
+    return { on, connect, disconnect, findMatch, cancelMatch, submitAnswer, forfeit, sendReaction };
 })();

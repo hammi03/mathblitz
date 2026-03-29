@@ -69,7 +69,7 @@ const Daily = (() => {
 
     // ── Completion tracking (localStorage) ───────────────────────────────────
 
-    function storageKey() { return `mathblitz_daily_${getTodayISO()}`; }
+    function storageKey() { return `quantquiz_daily_${getTodayISO()}`; }
 
     function hasCompletedToday() {
         return localStorage.getItem(storageKey()) === 'done';

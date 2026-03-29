@@ -1,5 +1,5 @@
 /**
- * server.js — MathBlitz duel server
+ * server.js — QuantQuiz duel server
  * Express + Socket.io. Handles matchmaking and real-time duels.
  *
  * Usage: node server.js
@@ -80,6 +80,12 @@ io.on('connection', socket => {
             score:   room.players[playerIdx].score,
             correct: room.players[playerIdx].correct,
         });
+    });
+
+    socket.on('send_reaction', ({ emoji }) => {
+        const { roomId } = socket.data;
+        if (!roomId) return;
+        socket.to(roomId).emit('reaction', { emoji });
     });
 
     socket.on('forfeit', () => {
@@ -203,6 +209,6 @@ function endRoom(roomId, forcedWinner, reason) {
 // ── Start ─────────────────────────────────────────────────────────────────────
 
 server.listen(PORT, () => {
-    console.log(`\nMathBlitz duel server → http://localhost:${PORT}`);
+    console.log(`\nQuantQuiz duel server → http://localhost:${PORT}`);
     console.log('Waiting for players...\n');
 });
