@@ -867,7 +867,7 @@ const App = (() => {
                     <div class="lb-row ${isMe ? 'lb-row-me' : ''}">
                         <span class="lb-rank">${medal}</span>
                         <span class="lb-name">
-                            <span class="lb-name-link" data-username="${escapeHtml(username)}">${escapeHtml(username)}${isMe ? ' (you)' : ''}</span>${rankBadge}
+                            <button type="button" class="lb-name-link" data-username="${escapeHtml(username)}">${escapeHtml(username)}${isMe ? ' (you)' : ''}</button>${rankBadge}
                         </span>
                         <div class="lb-scores">
                             <span class="lb-primary">${primary}</span>
@@ -1489,6 +1489,7 @@ const App = (() => {
     async function init() {
         UI.mountNumpads();
         UI.initDialogs();
+        UI.initPressedState();
         initMenu();
         initAnswerInput();
         initNav();

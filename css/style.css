@@ -173,7 +173,7 @@ body {
     width: 0.8rem;
     height: 0.8rem;
     border-radius: 50%;
-    border: 2px solid var(--hairline-2);
+    border: 2px solid var(--haze);
     transition: background 0.3s, border-color 0.3s, transform 0.3s;
 }
 .pip.on { background: var(--ball); border-color: var(--ball); }
@@ -491,6 +491,7 @@ h2 {
 #duel-input::-webkit-outer-spin-button,
 #duel-input::-webkit-inner-spin-button { -webkit-appearance: none; }
 #answer-input:focus,   #duel-input:focus   { border-color: var(--line); }
+input::placeholder { color: var(--haze); opacity: 1; }
 #answer-input.correct, #duel-input.correct { border-color: var(--ball); color: var(--ball); }
 #answer-input.wrong,   #duel-input.wrong   { border-color: var(--clay); color: var(--clay); }
 
@@ -871,7 +872,7 @@ h2 {
 .lb-scores { display: flex; flex-direction: column; align-items: flex-end; }
 .lb-primary { font-family: var(--font-num); font-size: 1.35rem; font-weight: 800; line-height: 1.1; }
 .lb-secondary { font-size: 0.78rem; color: var(--haze); }
-.lb-name-link { cursor: pointer; text-decoration: underline; text-decoration-color: var(--hairline-2); text-underline-offset: 3px; }
+.lb-name-link { background: none; border: none; padding: 0.35rem 0; font: inherit; text-align: left; max-width: 100%; overflow: hidden; text-overflow: ellipsis; cursor: pointer; text-decoration: underline; text-decoration-color: var(--hairline-2); text-underline-offset: 3px; }
 .lb-name-link:hover { color: var(--ball); }
 
 .history-entry {

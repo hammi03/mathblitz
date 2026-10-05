@@ -56,6 +56,17 @@ const UI = (() => {
         h1?.focus({ preventScroll: true });
     }
 
+    // ── Choice buttons: the .active look is mirrored into aria-pressed ────────
+
+    function initPressedState() {
+        const choices = document.querySelectorAll('.mode-btn, .pill-btn, .modal-tab');
+        const sync = b => b.setAttribute('aria-pressed', String(b.classList.contains('active')));
+        choices.forEach(b => {
+            sync(b);
+            new MutationObserver(() => sync(b)).observe(b, { attributes: true, attributeFilter: ['class'] });
+        });
+    }
+
     // ── Dialogs: focus in, Escape out, page behind them inert ─────────────────
 
     function initDialogs() {
@@ -432,6 +443,7 @@ const UI = (() => {
         focusHeading,
         announce,
         initDialogs,
+        initPressedState,
         updateHUD,
         updateTimer,
         updateSprintProgress,
