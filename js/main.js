@@ -144,6 +144,7 @@ const App = (() => {
                     return;
                 }
                 const data = await DB.signUp(email, pass, username);
+                track('signup');
                 if (data.session) {
                     closeAuthModal();
                 } else {
@@ -157,7 +158,10 @@ const App = (() => {
             }
         });
 
-        document.getElementById('auth-close').addEventListener('click', closeAuthModal);
+        document.getElementById('auth-close').addEventListener('click', () => {
+            track('guest_continue');
+            closeAuthModal();
+        });
         document.getElementById('sign-in-menu-btn').addEventListener('click', openAuthModal);
         document.getElementById('sign-out-btn').addEventListener('click', async () => {
             await DB.signOut();
@@ -423,6 +427,11 @@ const App = (() => {
         }
 
         Sound.gameStart();
+        track('game_start', {
+            mode:       settings.mode,
+            difficulty: settings.mode === 'daily' ? 'mixed' : settings.difficulty,
+            time:       settings.mode === 'classic' ? settings.timeLimit : 0,
+        });
         const state = Game.start(gameSettings);
         UI.updateHUD(state);
         UI.showQuestion(Game.getCurrentQuestion());
@@ -527,6 +536,14 @@ const App = (() => {
             refreshBest();
         }
         UI.showResults(state, elapsed, isNewBest);
+
+        const answered = state.correct + state.wrong;
+        track('game_end', {
+            mode:     state.mode,
+            score:    state.score,
+            accuracy: answered ? Math.round((state.correct / answered) * 100) : 0,
+        });
+        if (state.mode === 'daily') track('daily_played');
         submitBtn.classList.toggle('hidden', !(currentUser && canSubmit(currentXP)));
         setSaveStatus('');
 
@@ -754,6 +771,7 @@ const App = (() => {
         });
 
         DuelClient.on('matched', ({ opponent, playerIdx, firstQuestion }) => {
+            track('duel_matched');
             _duelPlayerIdx = playerIdx;
             document.getElementById('duel-my-name').textContent  = currentUsername || 'You';
             document.getElementById('duel-opp-name').textContent = opponent;
@@ -830,6 +848,10 @@ const App = (() => {
         });
 
         DuelClient.on('duel_end', ({ winner, reason, players }) => {
+            track('duel_finished', {
+                result: winner === -1 ? 'draw' : winner === _duelPlayerIdx ? 'win' : 'loss',
+                reason,
+            });
             const me  = players[_duelPlayerIdx];
             const opp = players[1 - _duelPlayerIdx];
 
@@ -892,6 +914,7 @@ const App = (() => {
         document.getElementById('duel-pre-countdown').classList.add('hidden');
         UI.showScreen('duel');
         // The server looks up the username from this token, so it can't be spoofed
+        track('duel_search_started');
         DuelClient.findMatch(await DB.getAccessToken());
     }
 
@@ -911,6 +934,7 @@ const App = (() => {
 
     function initShare() {
         document.getElementById('share-btn').addEventListener('click', () => {
+            track('share_clicked', { mode: settings.mode });
             const score   = document.getElementById('res-score').textContent;
             const correct = document.getElementById('res-correct').textContent;
             const acc     = document.getElementById('res-accuracy').textContent;

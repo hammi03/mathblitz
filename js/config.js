@@ -4,3 +4,13 @@ const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZ
 
 // ── Duel server ───────────────────────────────────────────────────────────────
 const DUEL_SERVER_URL = 'https://mathblitz-production.up.railway.app';
+
+// ── Analytics (cookieless, no consent banner needed) ──────────────────────────
+// Leave provider null to disable. Neither value is secret.
+//   Umami:     provider 'umami',     scriptUrl 'https://cloud.umami.is/script.js', siteId = website ID
+//   Plausible: provider 'plausible', scriptUrl 'https://plausible.io/js/script.js', siteId = your domain
+const ANALYTICS = {
+    provider:  null,
+    scriptUrl: '',
+    siteId:    '',
+};
