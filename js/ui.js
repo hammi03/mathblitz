@@ -12,6 +12,16 @@ function escapeHtml(value) {
 
 const UI = (() => {
 
+    const reduceMotion = () => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+
+    // Restart a CSS animation class on an element
+    function replay(el, cls) {
+        if (!el) return;
+        el.classList.remove(cls);
+        void el.offsetWidth;
+        el.classList.add(cls);
+    }
+
     const screens = {
         menu:        document.getElementById('screen-menu'),
         game:        document.getElementById('screen-game'),
@@ -34,7 +44,10 @@ const UI = (() => {
 
     function updateHUD(state) {
         document.getElementById('score-display').textContent  = state.score;
-        document.getElementById('streak-display').textContent = state.streak;
+        const streakEl = document.getElementById('streak-display');
+        streakEl.textContent = state.streak;
+        // 🔥 from 3 in a row, hotter at 6 and 9 (same steps as the score multiplier)
+        streakEl.dataset.heat = String(Math.min(Math.floor(state.streak / 3), 3));
         document.getElementById('level-display').textContent  = state.level;
     }
 
@@ -75,9 +88,27 @@ const UI = (() => {
 
     // ── Feedback ──────────────────────────────────────────────────────────────
 
+    // Correct: the card flashes ball-yellow; wrong: it shakes
+    function flashCard(card, correct) {
+        replay(card, correct ? 'hit' : 'miss');
+    }
+
+    function showCombo(multiplier) {
+        const el = document.getElementById('combo');
+        if (multiplier > 1) {
+            const text = `×${multiplier} combo`;
+            if (el.textContent !== text) { el.textContent = text; replay(el, 'pop'); }
+            el.classList.add('on');
+        } else {
+            el.classList.remove('on');
+        }
+    }
+
     function showFeedback(correct, pointsEarned, multiplier, correctAnswer) {
         const fb    = document.getElementById('feedback');
         const input = document.getElementById('answer-input');
+        flashCard(document.getElementById('question-card'), correct);
+        showCombo(correct ? multiplier : 1);
 
         if (correct) {
             const bonus = multiplier > 1 ? ` ×${multiplier}` : '';
@@ -107,8 +138,8 @@ const UI = (() => {
 
         const anchor = document.getElementById('score-display');
         const rect   = anchor.getBoundingClientRect();
-        el.style.left = `${rect.left + rect.width / 2 - 24}px`;
-        el.style.top  = `${rect.top - 8}px`;
+        el.style.left = `${rect.right + 6}px`;   // beside the score, not over its label
+        el.style.top  = `${rect.top}px`;
 
         document.body.appendChild(el);
         el.addEventListener('animationend', () => el.remove());
@@ -143,15 +174,30 @@ const UI = (() => {
                 state.mode === 'community' ? 'Community problems' : 'Zen session';
         }
 
-        document.getElementById('res-score').textContent    = state.score;
-        document.getElementById('res-correct').textContent  = state.correct;
-        document.getElementById('res-wrong').textContent    = state.wrong;
-        document.getElementById('res-accuracy').textContent = accuracy + '%';
-        document.getElementById('res-streak').textContent   = state.bestStreak;
-        document.getElementById('res-time').textContent     = elapsed + 's';
-
+        document.getElementById('res-time').textContent = elapsed + 's';
         document.getElementById('new-best').style.display = isNewBest ? 'block' : 'none';
         showScreen('results');
+
+        countUp('res-score',    state.score);
+        countUp('res-correct',  state.correct);
+        countUp('res-wrong',    state.wrong);
+        countUp('res-accuracy', accuracy, '%');
+        countUp('res-streak',   state.bestStreak);
+    }
+
+    // Results tick up from 0 like a scoreboard (instant with reduced motion)
+    function countUp(id, target, suffix = '') {
+        const el = document.getElementById(id);
+        if (reduceMotion() || target <= 0) { el.textContent = target + suffix; return; }
+        const duration = 700;
+        const start = performance.now();
+        function frame(now) {
+            const t = Math.min(1, (now - start) / duration);
+            const eased = 1 - Math.pow(1 - t, 3);
+            el.textContent = Math.round(target * eased) + suffix;
+            if (t < 1) requestAnimationFrame(frame);
+        }
+        requestAnimationFrame(frame);
     }
 
     function updateBestDisplay(value) {
@@ -165,6 +211,7 @@ const UI = (() => {
         document.getElementById('rankup-icon').textContent = newRank.icon;
         document.getElementById('rankup-name').textContent = newRank.name;
         overlay.classList.add('active');
+        Sound.rankUp();
         setTimeout(() => overlay.classList.remove('active'), 2800);
     }
 
@@ -234,6 +281,8 @@ const UI = (() => {
         showResults,
         updateBestDisplay,
         flashLevelUp,
+        flashCard,
+        showCombo,
         showRankUp,
         renderHistory,
     };

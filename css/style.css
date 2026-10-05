@@ -449,6 +449,68 @@ h2 {
 .feedback.correct { color: var(--ball); }
 .feedback.wrong   { color: var(--clay); }
 
+/* ── Game feel ── */
+.game-footer { display: flex; justify-content: center; gap: 0.6rem; }
+.game-footer .btn-ghost { align-self: auto; }
+
+/* Typing: each digit gives the field a small kick */
+#answer-input.typed, #duel-input.typed { animation: typed 0.12s ease-out; }
+@keyframes typed { 50% { transform: scale(1.04); } }
+
+/* Answer verdict on the scoreboard card */
+.question-card { position: relative; border: 2px solid transparent; }
+.question-card.hit  { animation: hit 0.35s ease-out; }
+.question-card.miss { animation: miss 0.32s ease-in-out; }
+@keyframes hit {
+    0%   { border-color: var(--ball); box-shadow: 0 0 0 0 rgba(220, 255, 74, 0.45); }
+    100% { border-color: transparent; box-shadow: 0 0 0 14px rgba(220, 255, 74, 0); }
+}
+@keyframes miss {
+    0%, 100% { transform: translateX(0); border-color: transparent; }
+    20%      { transform: translateX(-8px); border-color: var(--clay); }
+    40%      { transform: translateX(7px);  border-color: var(--clay); }
+    60%      { transform: translateX(-4px); }
+    80%      { transform: translateX(2px); }
+}
+
+/* Combo: a tab on the card's top edge, clear of the question */
+.combo {
+    position: absolute;
+    top: -0.85rem;
+    right: 1rem;
+    font-family: var(--font-num);
+    font-size: 1.25rem;
+    font-weight: 900;
+    color: var(--court);
+    background: var(--ball);
+    border-radius: var(--r-sm);
+    padding: 0.05rem 0.5rem;
+    opacity: 0;
+    transform: scale(0.6);
+    transition: opacity 0.15s, transform 0.15s;
+}
+.combo.on  { opacity: 1; transform: scale(1); }
+.combo.pop { animation: comboPop 0.35s cubic-bezier(0.34, 1.56, 0.64, 1); }
+@keyframes comboPop { 0% { transform: scale(0.5); } 100% { transform: scale(1); } }
+
+/* Streak fire: heats up in the multiplier steps */
+.streak-val { transition: color 0.2s, transform 0.2s; }
+.streak-val[data-heat="1"] { color: var(--amber); }
+.streak-val[data-heat="2"] { color: var(--clay); transform: scale(1.08); }
+.streak-val[data-heat="3"] { color: var(--ball); transform: scale(1.15); }
+.streak-val:not([data-heat="0"])::after {
+    content: '🔥';
+    display: inline-block;
+    font-size: 0.55em;
+    margin-left: 0.15em;
+    vertical-align: super;
+    animation: flicker 0.9s ease-in-out infinite alternate;
+}
+@keyframes flicker {
+    from { transform: scale(0.9) rotate(-6deg); }
+    to   { transform: scale(1.1) rotate(6deg); }
+}
+
 /* Floating score pop */
 .score-pop {
     position: fixed;
@@ -797,7 +859,24 @@ h2 {
     z-index: 300;
 }
 .rankup-overlay.active { display: flex; }
-.rankup-content { text-align: center; animation: rankUpPop 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) forwards; }
+.rankup-content { position: relative; text-align: center; animation: rankUpPop 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) forwards; }
+.rankup-ring {
+    position: absolute;
+    left: 50%;
+    top: 2.5rem;
+    width: 9rem;
+    height: 9rem;
+    margin-left: -4.5rem;
+    margin-top: -4.5rem;
+    border: 4px solid var(--ball);
+    border-radius: 50%;
+    animation: ring 1.1s ease-out 0.15s both;
+    pointer-events: none;
+}
+@keyframes ring {
+    0%   { transform: scale(0.3); opacity: 1; }
+    100% { transform: scale(2.4); opacity: 0; }
+}
 .rankup-icon  { font-size: 5rem; line-height: 1; }
 .rankup-title { font-size: 1rem; color: var(--haze); margin-top: 0.6rem; }
 .rankup-name  { font-family: var(--font-num); font-size: 3.6rem; font-weight: 900; color: var(--ball); line-height: 1; }

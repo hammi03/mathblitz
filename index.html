@@ -67,6 +67,7 @@
     <!-- ── RANK-UP OVERLAY ── -->
     <div id="rankup-overlay" class="rankup-overlay">
         <div class="rankup-content">
+            <div class="rankup-ring" aria-hidden="true"></div>
             <div class="rankup-icon" id="rankup-icon">🥈</div>
             <div class="rankup-title">New rank</div>
             <div class="rankup-name" id="rankup-name">Silver</div>
@@ -218,6 +219,7 @@
             <div class="menu-bottom-btns">
                 <button id="leaderboard-btn" class="btn-secondary">Leaderboard</button>
                 <button id="history-btn" class="btn-secondary">History</button>
+                <button class="btn-secondary sound-toggle" aria-pressed="true">Sound on</button>
                 <button id="notif-btn" class="btn-secondary" title="Enable daily reminders" aria-label="Enable daily reminders">🔔</button>
             </div>
         </div>
@@ -238,7 +240,7 @@
             </div>
             <div class="hud-stat center">
                 <span class="hud-label">Streak</span>
-                <span class="hud-value" id="streak-display">0</span>
+                <span class="hud-value streak-val" id="streak-display" data-heat="0">0</span>
             </div>
             <div class="hud-stat right">
                 <span class="hud-label">Level</span>
@@ -248,7 +250,8 @@
 
         <div class="progress-bar"><div class="progress-fill" id="progress-fill"></div></div>
 
-        <div class="question-card">
+        <div class="question-card" id="question-card">
+            <div class="combo" id="combo" aria-live="polite"></div>
             <div class="question" id="question-display">—</div>
             <div class="answer-row">
                 <input type="number" id="answer-input" placeholder="answer" autocomplete="off" inputmode="numeric">
@@ -257,7 +260,10 @@
             <div class="feedback" id="feedback">&nbsp;</div>
         </div>
 
-        <button id="quit-btn" class="btn-ghost">Quit</button>
+        <div class="game-footer">
+            <button id="quit-btn" class="btn-ghost">Quit</button>
+            <button class="btn-ghost sound-toggle" aria-pressed="true">Sound on</button>
+        </div>
     </div>
 
     <!-- ── RESULTS SCREEN ── -->

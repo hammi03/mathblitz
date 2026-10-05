@@ -250,6 +250,7 @@ const App = (() => {
         });
 
         document.getElementById('start-btn').addEventListener('click', startGame);
+        initSoundToggles();
         document.getElementById('daily-mode-btn').addEventListener('click', startDaily);
 
         // Back on the menu after a daily: Play uses the remembered settings again
@@ -285,6 +286,18 @@ const App = (() => {
         if (dailyDone || countdownActive) return;
         settings.mode = 'daily';
         startGame();
+    }
+
+    // ── Sound switch (menu and game screen) ───────────────────────────────────
+
+    function initSoundToggles() {
+        const buttons = document.querySelectorAll('.sound-toggle');
+        const render  = () => buttons.forEach(b => {
+            b.textContent = Sound.isEnabled() ? 'Sound on' : 'Sound off';
+            b.setAttribute('aria-pressed', String(Sound.isEnabled()));
+        });
+        buttons.forEach(b => b.addEventListener('click', () => { Sound.toggle(); render(); }));
+        render();
     }
 
     // ── Remembered settings ───────────────────────────────────────────────────
@@ -455,6 +468,7 @@ const App = (() => {
         }
 
         Sound.gameStart();
+        UI.showCombo(1);
         track('game_start', {
             mode:       settings.mode,
             difficulty: settings.mode === 'daily' ? 'mixed' : settings.difficulty,
@@ -531,6 +545,11 @@ const App = (() => {
         }
 
         input.addEventListener('keydown',  e => { if (e.key === 'Enter') handleSubmit(); });
+        [input, document.getElementById('duel-input')].forEach(el => el.addEventListener('input', () => {
+            el.classList.remove('typed');
+            void el.offsetWidth;
+            el.classList.add('typed');
+        }));
         submit.addEventListener('click', handleSubmit);
     }
 
@@ -564,6 +583,7 @@ const App = (() => {
             refreshBest();
         }
         lastResult = { state, elapsed };
+        Sound.gameEnd();
         UI.showResults(state, elapsed, isNewBest);
         updateResultButtons(state.mode);
 
@@ -912,6 +932,7 @@ const App = (() => {
 
             document.getElementById('duel-my-score').textContent = score;
 
+            UI.flashCard(document.querySelector('#duel-active .question-card'), correct);
             if (correct) {
                 const bonus = multiplier > 1 ? ` ×${multiplier}` : '';
                 fb.textContent = `+${pointsEarned}${bonus}`;
