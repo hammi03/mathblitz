@@ -92,13 +92,20 @@ const BotDuel = (() => {
     }
 
     // ── Bot ───────────────────────────────────────────────────────────────────
+    // The bot's next answer is due at room.botAt (a timestamp), so a pause can
+    // shift it by exactly the time the duel stood still.
 
     function scheduleBotAnswer() {
         const cfg   = BOT[room.difficulty];
         const delay = Math.max(0.8, cfg.mean + (Math.random() * 2 - 1) * cfg.jitter) * 1000;
+        room.botAt = Date.now() + delay;
+        armBot();
+    }
 
+    function armBot() {
         later(() => {
-            if (!room?.active) return;
+            if (!room?.active || room.pausedAt) return;
+            const cfg = BOT[room.difficulty];
             const bot = room.players[1];
             const q   = room.questions[bot.qIdx];
             if (!q) return;
@@ -110,7 +117,21 @@ const BotDuel = (() => {
             dispatch('opponent_update', { score: bot.score, correct: bot.correct });
 
             scheduleBotAnswer();
-        }, delay);
+        }, Math.max(0, room.botAt - Date.now()));
+    }
+
+    // Duel clock: runs to room.endsAt and reports each new whole second
+    function startClock() {
+        every(() => {
+            if (!room?.active || room.pausedAt) return;
+            const msLeft   = room.endsAt - Date.now();
+            const timeLeft = Math.max(0, Math.ceil(msLeft / 1000));
+            if (timeLeft !== room.shown) {
+                room.shown = timeLeft;
+                dispatch('timer_tick', { timeLeft });
+            }
+            if (msLeft <= 0) end(-1, 'timeout');
+        }, 100);
     }
 
     // ── Duel lifecycle ────────────────────────────────────────────────────────
@@ -155,16 +176,30 @@ const BotDuel = (() => {
 
     function begin() {
         stop({ keepRoom: true });
-        room.active = true;
+        room.active   = true;
+        room.endsAt   = Date.now() + DURATION * 1000;
+        room.shown    = DURATION;
+        room.pausedAt = null;
         dispatch('duel_start');
         scheduleBotAnswer();
+        startClock();
+    }
 
-        let timeLeft = DURATION;
-        every(() => {
-            timeLeft--;
-            dispatch('timer_tick', { timeLeft });
-            if (timeLeft <= 0) end(-1, 'timeout');
-        }, 1000);
+    // Leave dialog open: clock and bot stand still, nothing is lost
+    function pause() {
+        if (!room?.active || room.pausedAt) return;
+        room.pausedAt = Date.now();
+        stop({ keepRoom: true });
+    }
+
+    function resume() {
+        if (!room?.active || !room.pausedAt) return;
+        const paused = Date.now() - room.pausedAt;
+        room.endsAt  += paused;
+        room.botAt   += paused;
+        room.pausedAt = null;
+        startClock();
+        armBot();
     }
 
     function end(forcedWinner, reason) {
@@ -188,7 +223,7 @@ const BotDuel = (() => {
     }
 
     function submitAnswer(answer) {
-        if (!room?.active || !Number.isSafeInteger(answer)) return;
+        if (!room?.active || room.pausedAt || !Number.isSafeInteger(answer)) return;
         const result = processAnswer(room.players[0], answer);
         if (!result) return;
         // Async like a network round trip, so the UI sees the same ordering as online
@@ -207,5 +242,5 @@ const BotDuel = (() => {
         if (!keepRoom) room = null;
     }
 
-    return { start, submitAnswer, forfeit, stop };
+    return { start, submitAnswer, forfeit, stop, pause, resume };
 })();
