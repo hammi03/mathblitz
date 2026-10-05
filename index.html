@@ -154,7 +154,10 @@
         <button id="start-btn" class="play-btn">
             <span class="play-label">Play</span>
             <span class="play-config" id="play-config">Classic, 60 seconds, easy</span>
+            <span class="play-best hidden" id="play-best">Best<strong id="best-display">—</strong></span>
         </button>
+
+        <div class="today-strip" aria-live="polite"></div>
 
         <button id="daily-mode-btn" class="daily-card">
             <span class="daily-top">
@@ -162,7 +165,7 @@
                 <span class="daily-date" id="daily-date-label"></span>
             </span>
             <span class="daily-desc" id="daily-mode-desc">20 questions, the same for everyone</span>
-            <span class="streak-badge hidden" id="streak-badge">🔥 <span id="streak-count">0</span>-day streak</span>
+            <span class="streak-badge hidden" id="streak-badge">🔥 <span id="streak-count">0</span> dailies in a row</span>
             <span class="daily-badge hidden" id="daily-done-badge">✓</span>
         </button>
 
@@ -215,7 +218,6 @@
         </details>
 
         <div class="menu-bottom">
-            <p class="best-label">Personal best <strong id="best-display">—</strong></p>
             <div class="menu-bottom-btns">
                 <button id="leaderboard-btn" class="btn-secondary">Leaderboard</button>
                 <button id="history-btn" class="btn-secondary">History</button>
@@ -268,28 +270,27 @@
 
     <!-- ── RESULTS SCREEN ── -->
     <div id="screen-results" class="screen">
-        <h1 class="results-title" id="results-title">Game Over</h1>
         <p class="results-sub" id="results-sub"></p>
+        <div class="result-hero">
+            <h1 class="results-title" id="results-title">Round over</h1>
+            <div class="hero-score">
+                <span class="hero-value" id="res-hero">0</span>
+                <span class="hero-label" id="res-hero-label">points</span>
+            </div>
+            <p class="res-delta" id="res-delta"></p>
+        </div>
 
         <div class="stats-grid">
             <div class="stat-card">
-                <span class="stat-label">Score</span>
-                <span class="stat-value" id="res-score">0</span>
-            </div>
-            <div class="stat-card">
                 <span class="stat-label">Correct</span>
-                <span class="stat-value green" id="res-correct">0</span>
-            </div>
-            <div class="stat-card">
-                <span class="stat-label">Wrong</span>
-                <span class="stat-value red" id="res-wrong">0</span>
+                <span class="stat-value" id="res-correct">0</span>
             </div>
             <div class="stat-card">
                 <span class="stat-label">Accuracy</span>
                 <span class="stat-value" id="res-accuracy">0%</span>
             </div>
             <div class="stat-card">
-                <span class="stat-label">Best Streak</span>
+                <span class="stat-label">Streak</span>
                 <span class="stat-value" id="res-streak">0</span>
             </div>
             <div class="stat-card">
@@ -298,7 +299,7 @@
             </div>
         </div>
 
-        <div class="new-best" id="new-best">New personal best</div>
+        <div class="today-strip" aria-live="polite"></div>
         <p class="save-status" id="save-status"></p>
 
         <div class="result-actions">

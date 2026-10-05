@@ -71,6 +71,71 @@ const App = (() => {
         localStorage.setItem(key, JSON.stringify(hist));
     }
 
+    // ── Daily goal + play streak (local, works for guests too) ────────────────
+
+    const DAILY_GOAL   = 3;   // rounds per day
+    const PROGRESS_KEY = 'quantquiz_progress';
+
+    function localISO(d = new Date()) {
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    }
+    function yesterdayISO() {
+        const d = new Date();
+        d.setDate(d.getDate() - 1);
+        return localISO(d);
+    }
+
+    // { last: 'YYYY-MM-DD', streak, rounds } — rounds counts today's finished games
+    function loadProgress() {
+        try {
+            const p = JSON.parse(localStorage.getItem(PROGRESS_KEY) || '{}');
+            const today = localISO();
+            const alive = p.last === today || p.last === yesterdayISO();
+            return {
+                last:   p.last ?? null,
+                streak: alive ? (p.streak ?? 0) : 0,
+                rounds: p.last === today ? (p.rounds ?? 0) : 0,
+            };
+        } catch {
+            return { last: null, streak: 0, rounds: 0 };
+        }
+    }
+
+    function recordRound() {
+        const p     = loadProgress();
+        const today = localISO();
+        const firstToday = p.last !== today;
+        const next = {
+            last:   today,
+            streak: firstToday ? p.streak + 1 : p.streak,
+            rounds: p.rounds + 1,
+        };
+        try { localStorage.setItem(PROGRESS_KEY, JSON.stringify(next)); } catch { /* private mode */ }
+        return { ...next, goalJustMet: next.rounds === DAILY_GOAL };
+    }
+
+    // Pips + one line of text; shared by the menu and the results screen
+    function renderToday(el) {
+        const p       = loadProgress();
+        const done    = Math.min(p.rounds, DAILY_GOAL);
+        const atRisk  = p.rounds === 0 && p.streak > 0;
+        const pips    = Array.from({ length: DAILY_GOAL }, (_, i) =>
+            `<span class="pip${i < done ? ' on' : ''}"></span>`).join('');
+        const text =
+            atRisk                    ? 'Play today to keep your streak alive' :
+            p.rounds === 0            ? `Today's goal: ${DAILY_GOAL} rounds` :
+            p.rounds < DAILY_GOAL     ? `${DAILY_GOAL - p.rounds} more ${DAILY_GOAL - p.rounds === 1 ? 'round' : 'rounds'} to today's goal` :
+                                        `Goal done for today`;
+        const streak = p.streak > 0 ? `<span class="today-streak">🔥 ${p.streak}</span>` : '';
+        el.classList.toggle('at-risk', atRisk);
+        el.classList.toggle('goal-done', p.rounds >= DAILY_GOAL);
+        el.innerHTML = `<span class="pips">${pips}</span><span class="today-text">${text}</span>${streak}`;
+    }
+
+    function refreshToday() {
+        document.querySelectorAll('.today-strip').forEach(renderToday);
+    }
+
     // ── Local storage ─────────────────────────────────────────────────────────
 
     function storageKey(mode, diff, time) {
@@ -266,6 +331,13 @@ const App = (() => {
         // Daily mode setup
         document.getElementById('daily-date-label').textContent = Daily.getDateLabel();
         updateDailyButton();
+        // Keep the "next daily" countdown and the today strip current while the menu is open
+        setInterval(() => {
+            if (!document.getElementById('screen-menu').classList.contains('active')) return;
+            document.getElementById('daily-date-label').textContent = Daily.getDateLabel();
+            updateDailyButton();
+            refreshToday();
+        }, 60000);
     }
 
     function updateDailyButton() {
@@ -275,9 +347,18 @@ const App = (() => {
         const btn     = document.getElementById('daily-mode-btn');
         badge.classList.toggle('hidden', !done);
         btn.classList.toggle('done', done);
-        desc.textContent  = done          ? 'Done for today. A new one starts at midnight UTC.'
+        desc.textContent  = done          ? `Done ✓ Next one in ${timeToNextDaily()}`
                           : !currentUser  ? 'Sign in to play. The same 20 questions for everyone.'
                           :                 '20 questions, the same for everyone';
+    }
+
+    // The daily resets at 00:00 UTC
+    function timeToNextDaily() {
+        const now  = new Date();
+        const next = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1);
+        const mins = Math.max(1, Math.ceil((next - now) / 60000));
+        const h = Math.floor(mins / 60), m = mins % 60;
+        return h > 0 ? `${h} h ${m} min` : `${m} min`;
     }
 
     // The daily starts straight from its card and doesn't change the remembered mode
@@ -341,6 +422,7 @@ const App = (() => {
         document.getElementById('play-config').textContent = describeSettings();
         updateTimeSectionVisibility();
         refreshBest();
+        refreshToday();
     }
 
     function updateTimeSectionVisibility() {
@@ -499,6 +581,7 @@ const App = (() => {
             const result = Game.tick();
             if (!result) return;
             UI.updateTimer(result.timeLeft, totalTime);
+            if (result.timeLeft > 0 && result.timeLeft <= 5) Sound.tick(result.timeLeft);
             if (result.gameOver) { stopTimers(); finishGame(result.state); }
         }, 1000);
     }
@@ -521,7 +604,7 @@ const App = (() => {
                 if (result.state.streak > 0 && result.state.streak % 3 === 0) {
                     Sound.streakMilestone(Math.floor(result.state.streak / 3));
                 } else {
-                    Sound.correct();
+                    Sound.correct(result.state.streak);
                 }
             } else {
                 Sound.wrong();
@@ -577,15 +660,23 @@ const App = (() => {
         saveGameHistory(state, elapsed);
 
         let isNewBest = false;
+        let prevBest  = null;
         if (state.mode === 'classic' || state.mode === 'sprint' || state.mode === 'zen') {
             const bestValue = state.mode === 'sprint' ? parseFloat(elapsed) : state.score;
+            prevBest  = getBest(state.mode, state.difficulty, settings.timeLimit);
             isNewBest = setBest(state.mode, state.difficulty, settings.timeLimit, bestValue);
             refreshBest();
         }
+        const progress = recordRound();
         lastResult = { state, elapsed };
-        Sound.gameEnd();
-        UI.showResults(state, elapsed, isNewBest);
-        updateResultButtons(state.mode);
+
+        // A real new best (not the very first round) gets the fanfare and confetti
+        const celebrate = isNewBest && prevBest !== null && state.score > 0;
+        if (celebrate) Sound.newBest(); else Sound.gameEnd();
+        UI.showResults(state, elapsed, { isNewBest, prevBest, celebrate });
+        if (progress.goalJustMet) setTimeout(() => Sound.goal(), celebrate ? 1100 : 600);
+        refreshToday();
+        updateResultButtons(state.mode, isNewBest ? null : prevBest);
         prepareShareCard();
 
         const answered = state.correct + state.wrong;
@@ -627,8 +718,8 @@ const App = (() => {
 
             if (state.mode === 'sprint') {
                 // Show the server-measured time, which is what the leaderboard uses
-                document.getElementById('results-title').textContent = res.elapsed + 's';
-                document.getElementById('res-time').textContent      = res.elapsed + 's';
+                document.getElementById('res-hero').textContent = res.elapsed + 's';
+                document.getElementById('res-time').textContent = res.elapsed + 's';
                 lastResult.elapsed = String(res.elapsed);
             }
 
@@ -1246,13 +1337,18 @@ const App = (() => {
     }
 
     // Daily results put Share front and centre; Play Again only leads back to the menu there
-    function updateResultButtons(mode) {
+    // Play Again names the target when there is a best still to beat
+    function updateResultButtons(mode, bestToBeat) {
         const isDaily = mode === 'daily';
         const share   = document.getElementById('share-btn');
         share.classList.toggle('btn-primary',   isDaily);
         share.classList.toggle('btn-secondary', !isDaily);
         share.textContent = '↗ Share';
-        document.getElementById('play-again-btn').classList.toggle('hidden', isDaily);
+        const again = document.getElementById('play-again-btn');
+        again.classList.toggle('hidden', isDaily);
+        again.textContent = bestToBeat === null || mode === 'zen' ? 'Play again'
+                          : mode === 'sprint' ? `Play again · beat ${bestToBeat}s`
+                          :                     `Play again · beat ${bestToBeat}`;
     }
 
     // ── Profile modal ─────────────────────────────────────────────────────────

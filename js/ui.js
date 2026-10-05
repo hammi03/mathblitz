@@ -54,17 +54,22 @@ const UI = (() => {
     function updateTimer(timeLeft, totalTime) {
         document.getElementById('timer-label').textContent = 'Time';   // may still say "Done" after a sprint
         document.getElementById('timer-display').textContent = timeLeft;
-        document.getElementById('progress-fill').style.width = `${(timeLeft / totalTime) * 100}%`;
+        const fill = document.getElementById('progress-fill');
+        fill.style.width = `${(timeLeft / totalTime) * 100}%`;
         const el = document.getElementById('timer-display');
-        if      (timeLeft <= 10) el.style.color = 'var(--red)';
-        else if (timeLeft <= 20) el.style.color = 'var(--yellow)';
-        else                     el.style.color = 'var(--accent)';
+        const color = timeLeft <= 10 ? 'var(--red)' : timeLeft <= 20 ? 'var(--yellow)' : 'var(--accent)';
+        el.style.color = color;
+        fill.style.background = timeLeft <= 20 ? color : '';
+        // Final seconds: the clock beats once per second
+        if (timeLeft > 0 && timeLeft <= 5) replay(el, 'beat');
+        else el.classList.remove('beat');
     }
 
     function updateSprintProgress(answered, total) {
         document.getElementById('timer-label').textContent   = 'Done';
         document.getElementById('timer-display').textContent = `${answered}/${total}`;
         document.getElementById('timer-display').style.color = 'var(--accent)';
+        document.getElementById('progress-fill').style.background = '';
         document.getElementById('progress-fill').style.width = `${(answered / total) * 100}%`;
         document.getElementById('progress-fill').style.transition = 'width 0.2s ease';
     }
@@ -73,6 +78,7 @@ const UI = (() => {
         document.getElementById('timer-label').textContent   = 'Time';
         document.getElementById('timer-display').textContent = elapsed + 's';
         document.getElementById('timer-display').style.color = 'var(--accent)';
+        document.getElementById('progress-fill').style.background = '';
     }
 
     // ── Question ──────────────────────────────────────────────────────────────
@@ -159,37 +165,87 @@ const UI = (() => {
 
     // ── Results ───────────────────────────────────────────────────────────────
 
-    function showResults(state, elapsed, isNewBest) {
+    // Headline for the result: frames it against the personal best (peak-end)
+    function verdict(state, elapsed, { isNewBest, prevBest }) {
+        const sprint = state.mode === 'sprint';
+        const value  = sprint ? parseFloat(elapsed) : state.score;
+        if (state.mode === 'daily') return { title: 'Daily done', delta: '' };
+        if (isNewBest && prevBest !== null && state.score > 0) {
+            const delta = sprint ? `${(prevBest - value).toFixed(1)}s faster than your old best`
+                                 : `+${value - prevBest} on your old best`;
+            return { title: 'New best!', delta };
+        }
+        if (prevBest === null || state.mode === 'zen' || state.mode === 'community') {
+            return { title: prevBest === null && state.score > 0 ? 'First score set' : 'Round over', delta: '' };
+        }
+        const gap   = sprint ? value - prevBest : prevBest - value;
+        const close = sprint ? gap <= prevBest * 0.15 : gap <= Math.max(10, prevBest * 0.15);
+        const shown = sprint ? `${gap.toFixed(1)}s` : String(gap);
+        return close
+            ? { title: 'So close', delta: `${shown} short of your best (${sprint ? prevBest + 's' : prevBest})` }
+            : { title: 'Round over', delta: `Your best: ${sprint ? prevBest + 's' : prevBest}` };
+    }
+
+    function showResults(state, elapsed, best) {
         const total    = state.correct + state.wrong;
         const accuracy = total > 0 ? Math.round((state.correct / total) * 100) : 0;
+        const sprint   = state.mode === 'sprint';
 
-        if (state.mode === 'sprint') {
-            document.getElementById('results-title').textContent = elapsed + 's';
-            document.getElementById('results-sub').textContent   = 'Sprint, 10 questions';
-        } else {
-            document.getElementById('results-title').textContent = 'Game Over';
-            document.getElementById('results-sub').textContent   =
-                state.mode === 'classic' ? `Classic, ${state.totalTime} seconds` :
-                state.mode === 'daily'   ? 'Daily challenge' :
-                state.mode === 'community' ? 'Community problems' : 'Zen session';
-        }
+        document.getElementById('results-sub').textContent =
+            state.mode === 'classic'   ? `Classic, ${state.totalTime} seconds, ${state.difficulty}` :
+            sprint                     ? `Sprint, 10 questions, ${state.difficulty}` :
+            state.mode === 'daily'     ? 'Daily challenge' :
+            state.mode === 'community' ? 'Community problems' : 'Zen session';
+
+        const v = verdict(state, elapsed, best);
+        const screen = screens.results;
+        document.getElementById('results-title').textContent = v.title;
+        document.getElementById('res-delta').textContent     = v.delta;
+        document.getElementById('res-hero-label').textContent = sprint ? 'seconds' : 'points';
+        screen.classList.toggle('is-best',  !!best.celebrate);
+        screen.classList.toggle('is-close', v.title === 'So close');
 
         document.getElementById('res-time').textContent = elapsed + 's';
-        document.getElementById('new-best').style.display = isNewBest ? 'block' : 'none';
         showScreen('results');
 
-        countUp('res-score',    state.score);
-        countUp('res-correct',  state.correct);
-        countUp('res-wrong',    state.wrong);
+        if (sprint) document.getElementById('res-hero').textContent = elapsed + 's';
+        else        countUp('res-hero', state.score, '', 900);
+        countUp('res-correct',  state.correct, `/${total}`);
         countUp('res-accuracy', accuracy, '%');
         countUp('res-streak',   state.bestStreak);
+
+        if (best.celebrate) setTimeout(confetti, 350);
+    }
+
+    // ── Confetti: ball-yellow and court-white bits from the score ─────────────
+
+    function confetti() {
+        if (reduceMotion()) return;
+        const origin = document.getElementById('res-hero').getBoundingClientRect();
+        const colors = ['var(--ball)', 'var(--line)', 'var(--amber)', 'var(--clay)'];
+        const layer  = document.createElement('div');
+        layer.className = 'confetti';
+        for (let i = 0; i < 46; i++) {
+            const bit   = document.createElement('i');
+            const angle = Math.random() * Math.PI * 2;
+            const dist  = 90 + Math.random() * 170;
+            bit.style.left = `${origin.left + origin.width / 2}px`;
+            bit.style.top  = `${origin.top + origin.height / 2}px`;
+            bit.style.background = colors[i % colors.length];
+            bit.style.setProperty('--dx',  `${Math.cos(angle) * dist}px`);
+            bit.style.setProperty('--dy',  `${Math.sin(angle) * dist - 60}px`);
+            bit.style.setProperty('--rot', `${Math.random() * 720 - 360}deg`);
+            bit.style.animationDelay = `${Math.random() * 0.08}s`;
+            layer.appendChild(bit);
+        }
+        document.body.appendChild(layer);
+        setTimeout(() => layer.remove(), 1600);
     }
 
     // Results tick up from 0 like a scoreboard (instant with reduced motion)
-    function countUp(id, target, suffix = '') {
+    function countUp(id, target, suffix = '', duration = 700) {
         const el = document.getElementById(id);
         if (reduceMotion() || target <= 0) { el.textContent = target + suffix; return; }
-        const duration = 700;
         const start = performance.now();
         function frame(now) {
             const t = Math.min(1, (now - start) / duration);
@@ -200,8 +256,10 @@ const UI = (() => {
         requestAnimationFrame(frame);
     }
 
+    // Lives inside the Play button; hidden until there is a best to show
     function updateBestDisplay(value) {
         document.getElementById('best-display').textContent = value;
+        document.getElementById('play-best').classList.toggle('hidden', value === '—');
     }
 
     // ── Rank-up overlay ───────────────────────────────────────────────────────

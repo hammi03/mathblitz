@@ -27,7 +27,8 @@
     --line:      #F4F7FB;   /* text and court lines        14.7:1  */
     --haze:      #9FB4D1;   /* secondary text               7.5:1  */
     --ball:      #DCFF4A;   /* lead colour: play, score    13.9:1  */
-    --clay:      #FF7A50;   /* sparing second accent: mistakes, duel */
+    --clay:      #FF7A50;   /* mistakes only                       */
+    --rally:     #5CC8FF;   /* duel and opponent            8.4:1  */
     --amber:     #FFC53D;   /* time running low                    */
     --hairline:  rgba(244, 247, 251, 0.14);
     --hairline-2: rgba(244, 247, 251, 0.26);
@@ -43,7 +44,7 @@
     --text:    var(--line);
     --muted:   var(--haze);
     --accent:  var(--ball);
-    --accent2: var(--clay);
+    --accent2: var(--rally);
     --green:   var(--ball);
     --red:     var(--clay);
     --yellow:  var(--amber);
@@ -128,10 +129,64 @@ body {
     border-radius: var(--r-lg);
     text-align: left;
     cursor: pointer;
-    transition: transform 0.1s, filter 0.15s;
+    transition: transform 0.1s, filter 0.15s, box-shadow 0.1s;
 }
+.play-btn { position: relative; box-shadow: 0 6px 0 #9DBA1F; }   /* a solid base: it reads as pressable */
 .play-btn:hover  { filter: brightness(1.05); }
-.play-btn:active { transform: scale(0.985); }
+.play-btn:active { transform: translateY(4px); box-shadow: 0 2px 0 #9DBA1F; }
+/* The target sits in the button: best score, top right */
+.play-best {
+    position: absolute;
+    top: 1rem;
+    right: 1.2rem;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    font-size: 0.8rem;
+    font-weight: 700;
+    opacity: 0.75;
+}
+.play-best strong {
+    font-family: var(--font-num);
+    font-size: 2rem;
+    font-weight: 900;
+    line-height: 1;
+    opacity: 1;
+}
+
+/* Today strip: daily goal pips + play streak */
+.today-strip {
+    display: flex;
+    align-items: center;
+    gap: 0.7rem;
+    min-height: 44px;
+    padding: 0.55rem 0.9rem;
+    background: var(--court-2);
+    border-radius: var(--r-md);
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--haze);
+}
+.today-strip:empty { display: none; }
+.pips { display: flex; gap: 0.3rem; flex-shrink: 0; }
+.pip {
+    width: 0.8rem;
+    height: 0.8rem;
+    border-radius: 50%;
+    border: 2px solid var(--hairline-2);
+    transition: background 0.3s, border-color 0.3s, transform 0.3s;
+}
+.pip.on { background: var(--ball); border-color: var(--ball); }
+.today-text { flex: 1; min-width: 0; }
+.today-streak {
+    font-family: var(--font-num);
+    font-size: 1.3rem;
+    font-weight: 900;
+    color: var(--amber);
+    line-height: 1;
+}
+.today-strip.goal-done .today-text { color: var(--ball); }
+.today-strip.at-risk { box-shadow: inset 0 0 0 2px var(--amber); color: var(--line); }
 .play-label {
     font-family: var(--font-num);
     font-size: 4.6rem;
@@ -303,15 +358,15 @@ h2 {
     min-height: 56px;
     padding: 0.85rem;
     background: none;
-    border: 2px solid var(--clay);
+    border: 2px solid var(--rally);
     border-radius: var(--r-md);
-    color: var(--clay);
+    color: var(--rally);
     font-size: 1.05rem;
     font-weight: 800;
     cursor: pointer;
     transition: background 0.15s, color 0.15s;
 }
-.btn-duel:hover  { background: var(--clay); color: var(--court); }
+.btn-duel:hover  { background: var(--rally); color: var(--court); }
 
 /* ── Best score ── */
 .best-label { color: var(--haze); font-size: 0.9rem; display: flex; align-items: baseline; gap: 0.4rem; }
@@ -361,6 +416,9 @@ h2 {
     font-variant-numeric: tabular-nums;
 }
 .hud-value.accent { font-size: 2.8rem; color: var(--ball); }
+.hud-value.beat { animation: beat 0.5s ease-out; }
+@keyframes beat { 0% { transform: scale(1.35); } 100% { transform: scale(1); } }
+.progress-fill { transition: width 1s linear, background 0.3s; }
 .level-val { transition: color 0.3s, transform 0.3s; }
 
 /* Progress: a court line that shrinks */
@@ -529,16 +587,65 @@ h2 {
 }
 
 /* ── Results ── */
+.results-sub { color: var(--haze); font-size: 0.9rem; }
+/* One hero number; everything else is supporting detail */
+.result-hero {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: 0.25rem;
+    padding: 1.4rem 1rem 1.2rem;
+    background: var(--court-2);
+    border-radius: var(--r-lg);
+    border: 2px solid transparent;
+}
 .results-title {
     font-family: var(--font-num);
-    font-size: 3.4rem;
+    font-size: 2rem;
     font-weight: 900;
     line-height: 1;
+    color: var(--haze);
 }
-.results-sub { color: var(--haze); font-size: 0.95rem; margin-top: -0.5rem; }
+.hero-score { display: flex; align-items: baseline; gap: 0.4rem; }
+.hero-value {
+    font-family: var(--font-num);
+    font-size: 6.5rem;
+    font-weight: 900;
+    line-height: 0.95;
+    color: var(--ball);
+    font-variant-numeric: tabular-nums;
+}
+.hero-label { font-size: 1rem; font-weight: 700; color: var(--haze); }
+.res-delta { font-size: 0.95rem; font-weight: 700; color: var(--line); min-height: 1.4rem; }
+
+.is-best .result-hero  { border-color: var(--ball); animation: heroGlow 1.6s ease-out 0.3s; }
+.is-best .results-title { color: var(--ball); font-size: 2.6rem; animation: comboPop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1); }
+.is-best .res-delta    { color: var(--ball); }
+.is-close .results-title { color: var(--amber); }
+@keyframes heroGlow {
+    0%   { box-shadow: 0 0 0 0 rgba(220, 255, 74, 0.5); }
+    100% { box-shadow: 0 0 0 22px rgba(220, 255, 74, 0); }
+}
+
+/* Confetti bits fly out from the hero number */
+.confetti { position: fixed; inset: 0; pointer-events: none; z-index: 60; overflow: hidden; }
+.confetti i {
+    position: absolute;
+    width: 8px;
+    height: 12px;
+    border-radius: 2px;
+    animation: confetti 1.4s cubic-bezier(0.2, 0.7, 0.4, 1) forwards;
+}
+@keyframes confetti {
+    0%   { transform: translate(-50%, -50%) rotate(0); opacity: 1; }
+    70%  { opacity: 1; }
+    100% { transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy) + 140px)) rotate(var(--rot)); opacity: 0; }
+}
+
 .stats-grid {
     display: grid;
-    grid-template-columns: 1fr 1fr 1fr;
+    grid-template-columns: repeat(4, 1fr);
     gap: 1px;
     background: var(--hairline);       /* court lines between the cells */
     border-radius: var(--r-lg);
@@ -559,16 +666,10 @@ h2 {
     line-height: 1;
     font-variant-numeric: tabular-nums;
 }
+.stats-grid .stat-value { font-size: 1.8rem; }
+.stats-grid .stat-label { white-space: nowrap; }
 .stat-value.green { color: var(--ball); }
 .stat-value.red   { color: var(--clay); }
-
-.new-best {
-    display: none;
-    font-family: var(--font-num);
-    font-size: 1.6rem;
-    font-weight: 900;
-    color: var(--ball);
-}
 .save-status { font-size: 0.88rem; min-height: 1.2rem; }
 .result-actions { display: flex; flex-direction: column; gap: 0.6rem; }
 .result-actions-row { display: flex; gap: 0.5rem; }
@@ -792,7 +893,7 @@ h2 {
 }
 
 .duel-found-label   { font-size: 0.95rem; color: var(--haze); text-align: center; }
-.duel-opp-found     { font-family: var(--font-num); font-size: 2rem; font-weight: 900; color: var(--clay); text-align: center; }
+.duel-opp-found     { font-family: var(--font-num); font-size: 2rem; font-weight: 900; color: var(--rally); text-align: center; }
 .duel-countdown-big { font-family: var(--font-num); font-size: 8rem; font-weight: 900; line-height: 1; color: var(--ball); }
 
 .duel-scores {
@@ -901,10 +1002,10 @@ h2 {
     .logo h1       { font-size: 2rem; }
     .play-label    { font-size: 4rem; }
     .play-btn      { min-height: 118px; }
+    .hero-value    { font-size: 5.2rem; }
 }
 @media (max-width: 340px) {
     .settings-row { flex-direction: column; }
-    .stats-grid   { grid-template-columns: 1fr; }
 }
 
 /* ── Motion: respect the system setting ── */

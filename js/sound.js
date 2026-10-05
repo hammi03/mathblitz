@@ -56,9 +56,13 @@ const Sound = (() => {
 
     // ── Game sounds ───────────────────────────────────────────────────────────
 
-    function correct() {
-        tone(660, 'sine', 0.09, 0.2);
-        tone(990, 'sine', 0.12, 0.16, 0.07);
+    // Climbs a major pentatonic scale with the streak, so a run audibly builds up
+    const PENTA = [523, 587, 659, 784, 880, 1047, 1175, 1319, 1568, 1760];
+
+    function correct(streak = 1) {
+        const f = PENTA[Math.min(Math.max(streak - 1, 0), PENTA.length - 1)];
+        tone(f,       'sine', 0.09, 0.2);
+        tone(f * 1.5, 'sine', 0.12, 0.15, 0.07);
         vibrate(35);
     }
 
@@ -100,6 +104,27 @@ const Sound = (() => {
         vibrate(60);
     }
 
+    // Last seconds of the clock: a dry tick that gets brighter as time runs out
+    function tick(secondsLeft) {
+        tone(1000 + (5 - secondsLeft) * 120, 'square', 0.035, 0.07);
+        if (secondsLeft <= 3) vibrate(15);
+    }
+
+    // New personal best: a short fanfare that ends on a held major chord
+    function newBest() {
+        [523, 659, 784].forEach((f, i) => tone(f, 'triangle', 0.14, 0.2, i * 0.08));
+        [1047, 1319, 1568].forEach(f => tone(f, 'sine', 0.9, 0.11, 0.26));
+        tone([1568, 2093], 'sine', 0.35, 0.08, 0.5);
+        vibrate([50, 30, 50, 30, 120]);
+    }
+
+    // Daily goal reached: a light two-note chime
+    function goal() {
+        tone(1175, 'sine', 0.14, 0.16);
+        tone(1568, 'sine', 0.4,  0.14, 0.1);
+        vibrate(40);
+    }
+
     // Rising arpeggio with a bright tail
     function rankUp() {
         [523, 659, 784, 1047].forEach((freq, i) => tone(freq, 'triangle', 0.22, 0.2, i * 0.09));
@@ -120,5 +145,5 @@ const Sound = (() => {
 
     function toggle() { return setEnabled(!enabled); }
 
-    return { correct, wrong, streakMilestone, countdown, gameStart, gameEnd, rankUp, isEnabled, setEnabled, toggle };
+    return { correct, wrong, streakMilestone, countdown, gameStart, gameEnd, tick, newBest, goal, rankUp, isEnabled, setEnabled, toggle };
 })();
