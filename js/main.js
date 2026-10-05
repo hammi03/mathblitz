@@ -602,20 +602,29 @@ const App = (() => {
             zenElapsed = 0;
             UI.updateZenTimer(0);
             document.getElementById('progress-fill').style.width = '100%';
-            zenTimer = setInterval(() => { zenElapsed++; UI.updateZenTimer(zenElapsed); }, 1000);
+            zenTimer = setInterval(() => {
+                const secs = Math.floor(parseFloat(Game.elapsedSeconds()));   // stands still while paused
+                if (secs !== zenElapsed) { zenElapsed = secs; UI.updateZenTimer(secs); }
+            }, 250);
         }
 
         document.getElementById('answer-input').focus();
     }
 
+    // Polls the game clock; the display and the tick sound change once per second.
+    // While the round is paused Game.tick() returns null, so nothing moves.
     function startClassicTimer(totalTime) {
+        let shown = totalTime;
         classicTimer = setInterval(() => {
             const result = Game.tick();
             if (!result) return;
-            UI.updateTimer(result.timeLeft, totalTime);
-            if (result.timeLeft > 0 && result.timeLeft <= 5) Sound.tick(result.timeLeft);
+            if (result.timeLeft !== shown) {
+                shown = result.timeLeft;
+                UI.updateTimer(result.timeLeft, totalTime);
+                if (result.timeLeft > 0 && result.timeLeft <= 5) Sound.tick(result.timeLeft);
+            }
             if (result.gameOver) { stopTimers(); finishGame(result.state); }
-        }, 1000);
+        }, 100);
     }
 
     // ── Answer submission ─────────────────────────────────────────────────────

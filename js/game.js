@@ -49,6 +49,8 @@ const Game = (() => {
             answeredQuestions: [],   // first 30, for the history screen
             answers:           [],   // every answer given, sent to the server for scoring
             startTime:         Date.now(),
+            endsAt:            null,    // classic: when the clock reaches 0 (ms)
+            pausedAt:          null,    // set while the round is paused
             active:            false,
         };
     }
@@ -102,11 +104,31 @@ const Game = (() => {
         state = freshState(settings);
         state.currentQ = state.predefined ? state.predefined[0] : generateQuestion(state.difficulty);
         state.active = true;
+        if (state.mode === 'classic') state.endsAt = state.startTime + state.totalTime * 1000;
         return snapshot();
     }
 
+    // ── Clock: timestamps, so a pause shifts them and no time is lost ────────
+
+    function now() { return state.pausedAt ?? Date.now(); }
+
+    function pause() {
+        if (state.active && state.pausedAt === null) state.pausedAt = Date.now();
+    }
+
+    function resume() {
+        if (state.pausedAt === null) return;
+        const paused = Date.now() - state.pausedAt;
+        state.startTime += paused;
+        if (state.endsAt !== null) state.endsAt += paused;
+        state.pausedAt = null;
+    }
+
+    function isRunning() { return !!state.active; }
+    function isPaused()  { return state.pausedAt !== null; }
+
     function submitAnswer(userAnswer) {
-        if (!state.active) return null;
+        if (!state.active || state.pausedAt !== null) return null;
 
         const isCorrect     = userAnswer === state.currentQ.answer;
         const correctAnswer = state.currentQ.answer;
@@ -146,10 +168,12 @@ const Game = (() => {
         return { correct: isCorrect, correctAnswer, pointsEarned, multiplier, leveledUp, gameOver: false, state: snapshot() };
     }
 
+    // Classic: whole seconds left, read from the clock (call it often; it is cheap)
     function tick() {
-        if (!state.active || state.mode !== 'classic') return null;
-        state.timeLeft = Math.max(0, state.timeLeft - 1);
-        if (state.timeLeft === 0) {
+        if (!state.active || state.mode !== 'classic' || state.pausedAt !== null) return null;
+        const msLeft = state.endsAt - Date.now();
+        state.timeLeft = Math.max(0, Math.ceil(msLeft / 1000));
+        if (msLeft <= 0) {
             state.active = false;
             return { timeLeft: 0, gameOver: true, state: snapshot() };
         }
@@ -157,11 +181,11 @@ const Game = (() => {
     }
 
     function elapsedSeconds() {
-        return ((Date.now() - state.startTime) / 1000).toFixed(2);
+        return ((now() - state.startTime) / 1000).toFixed(2);
     }
 
     function getCurrentQuestion() { return state.currentQ; }
     function snapshot()           { return { ...state }; }
 
-    return { start, submitAnswer, tick, elapsedSeconds, getCurrentQuestion, snapshot };
+    return { start, submitAnswer, tick, pause, resume, isRunning, isPaused, elapsedSeconds, getCurrentQuestion, snapshot };
 })();
