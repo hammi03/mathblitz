@@ -834,7 +834,8 @@ kbd {
     display: flex;
     gap: 0.5rem;
 }
-.result-actions-row .btn-secondary { flex: 1; }
+.result-actions-row .btn-secondary { flex: 1; min-height: 44px; font-size: 0.9rem; }
+.result-actions-row .btn-primary   { flex: 1; }
 
 /* ── Profile modal body ── */
 .profile-body { display: flex; flex-direction: column; align-items: center; gap: 0.8rem; }

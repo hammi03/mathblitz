@@ -34,6 +34,8 @@ const App = (() => {
     let currentXP       = 0;      // server-side total_xp of the signed-in user
     let dailyDone       = false;  // signed-in user has started today's daily
     let session         = null;   // { sessionId, questions } of the running server-scored game
+    let currentStreak   = 0;      // day streak of the signed-in user
+    let lastResult      = null;   // { state, elapsed } of the last finished game, for sharing
 
     const lb = { mode: 'classic', difficulty: 'medium', timeLimit: 60 };
 
@@ -203,6 +205,7 @@ const App = (() => {
     }
 
     function updateStreakDisplay(streak) {
+        currentStreak = streak;
         document.getElementById('streak-count').textContent = streak;
         document.getElementById('streak-badge').style.display = streak > 0 ? 'inline-flex' : 'none';
     }
@@ -535,7 +538,9 @@ const App = (() => {
             isNewBest = setBest(state.mode, state.difficulty, settings.timeLimit, bestValue);
             refreshBest();
         }
+        lastResult = { state, elapsed };
         UI.showResults(state, elapsed, isNewBest);
+        updateResultButtons(state.mode);
 
         const answered = state.correct + state.wrong;
         track('game_end', {
@@ -578,6 +583,7 @@ const App = (() => {
                 // Show the server-measured time, which is what the leaderboard uses
                 document.getElementById('results-title').textContent = res.elapsed + 's';
                 document.getElementById('res-time').textContent      = res.elapsed + 's';
+                lastResult.elapsed = String(res.elapsed);
             }
 
             if (state.mode === 'daily')                           setSaveStatus('Daily score saved! ✓', 'green');
@@ -821,8 +827,9 @@ const App = (() => {
             _challengeLink = url.toString();
 
             setSearchText('Waiting for your friend', 'Send them the link. It works without an account and stays valid for 10 minutes.');
-            document.getElementById('challenge-btn').textContent = '🔗 Share link again';
-            await shareChallengeLink();
+            document.getElementById('challenge-btn').textContent = '🔗 Share invite link';
+            // Not triggered by a tap, so mobile browsers may refuse; then the button does it
+            await shareChallengeLink({ fromTap: false });
         });
 
         DuelClient.on('matched', ({ you, opponent, opponentIsBot, playerIdx, firstQuestion, duration }) => {
@@ -1005,16 +1012,21 @@ const App = (() => {
     let _challengeLink = null;
 
     async function createChallenge() {
-        if (_challengeLink) { await shareChallengeLink(); return; }
+        if (_challengeLink) { await shareChallengeLink({ fromTap: true }); return; }
         DuelClient.createChallenge(await DB.getAccessToken(), settings.difficulty);
     }
 
-    async function shareChallengeLink() {
+    async function shareChallengeLink({ fromTap }) {
         if (!_challengeLink) return;
-        const result = await shareOrCopy(`Can you beat me at mental math? ⚔️ Duel me on QuantQuiz: ${_challengeLink}`);
+        const result = await shareOrCopy(
+            `Can you beat me at mental math? ⚔️ Duel me on QuantQuiz: ${_challengeLink}`,
+            { allowPrompt: fromTap },
+        );
+        const sub = document.getElementById('duel-search-sub');
         if (result === 'copied') {
-            document.getElementById('duel-search-sub').textContent =
-                'Link copied! Send it to a friend. It works without an account and stays valid for 10 minutes.';
+            sub.textContent = 'Link copied! Send it to a friend. It works without an account and stays valid for 10 minutes.';
+        } else if (result === 'failed' && !fromTap) {
+            sub.textContent = 'Tap "Share invite link" to send it to a friend. No account needed, valid for 10 minutes.';
         }
     }
 
@@ -1033,8 +1045,9 @@ const App = (() => {
         DuelClient.joinChallenge(await DB.getAccessToken(), code.slice(0, 12));
     }
 
-    // Web Share API with clipboard fallback → 'shared' | 'copied' | 'failed'
-    async function shareOrCopy(text) {
+    // Web Share API with clipboard fallback → 'shared' | 'copied' | 'failed'.
+    // allowPrompt: as a last resort show the text to copy by hand (only after a tap).
+    async function shareOrCopy(text, { allowPrompt = true } = {}) {
         if (navigator.share) {
             try {
                 await navigator.share({ text });
@@ -1047,7 +1060,7 @@ const App = (() => {
             await navigator.clipboard.writeText(text);
             return 'copied';
         } catch {
-            prompt('Copy this:', text);
+            if (allowPrompt) prompt('Copy this:', text);
             return 'failed';
         }
     }
@@ -1066,25 +1079,63 @@ const App = (() => {
 
     // ── Share ─────────────────────────────────────────────────────────────────
 
-    function initShare() {
-        document.getElementById('share-btn').addEventListener('click', () => {
-            track('share_clicked', { mode: settings.mode });
-            const score   = document.getElementById('res-score').textContent;
-            const correct = document.getElementById('res-correct').textContent;
-            const acc     = document.getElementById('res-accuracy').textContent;
-            const mode    = settings.mode.charAt(0).toUpperCase() + settings.mode.slice(1);
-            const text    = `QuantQuiz ${mode} — ${score} pts | ${correct} correct | ${acc} accuracy\nPlay at https://mathblitz-jade.vercel.app`;
+    const DIFF_SKULLS = { easy: '💀', medium: '💀💀', hard: '💀💀💀' };
 
-            if (navigator.share) {
-                navigator.share({ title: 'QuantQuiz', text }).catch(() => {});
-            } else {
-                navigator.clipboard.writeText(text).then(() => {
-                    const btn = document.getElementById('share-btn');
-                    btn.textContent = 'Copied!';
-                    setTimeout(() => { btn.textContent = '↗ Share'; }, 2000);
-                });
+    // Link back to the app, tagged so shares show up in analytics
+    function shareLink(mode) {
+        const url = new URL(location.origin + location.pathname);
+        url.searchParams.set('utm_source', 'share');
+        url.searchParams.set('utm_campaign', mode);
+        return url.toString();
+    }
+
+    // Wordle-style result text, e.g.
+    // "QuantQuiz Daily Oct 5 · 18/20 ✅ · 42s · 🔥 Streak 5\n🟩🟩🟥…\nBeat me: <link>"
+    function buildShareText(state, elapsed) {
+        const answered = state.correct + state.wrong;
+        const acc      = answered ? Math.round((state.correct / answered) * 100) : 0;
+        const secs     = Math.round(parseFloat(elapsed));
+        const skulls   = DIFF_SKULLS[state.difficulty] ?? '';
+        let line;
+
+        if (state.mode === 'daily') {
+            const parts = [`QuantQuiz Daily ${Daily.getDateLabel()}`, `${state.correct}/${state.totalQuestions} ✅`, `${secs}s`];
+            if (currentUser && currentStreak > 0) parts.push(`🔥 Streak ${currentStreak}`);
+            const squares = state.answeredQuestions.map(q => q.correct ? '🟩' : '🟥');
+            const rows = [];
+            for (let i = 0; i < squares.length; i += 10) rows.push(squares.slice(i, i + 10).join(''));
+            line = [parts.join(' · '), ...rows].join('\n');
+        } else if (state.mode === 'sprint') {
+            line = `QuantQuiz Sprint ${skulls} · ${state.correct}/10 ✅ in ${parseFloat(elapsed).toFixed(1)}s`;
+        } else if (state.mode === 'classic') {
+            line = `QuantQuiz ${state.totalTime}s ${skulls} · ${state.score} pts · ${state.correct} ✅ · ${acc}%`;
+        } else {
+            line = `QuantQuiz ${state.mode === 'zen' ? 'Zen' : 'Community'} · ${state.correct} ✅ · ${acc}%`;
+        }
+        return `${line}\nBeat me: ${shareLink(state.mode)}`;
+    }
+
+    function initShare() {
+        const btn = document.getElementById('share-btn');
+        btn.addEventListener('click', async () => {
+            if (!lastResult) return;
+            track('share_clicked', { mode: lastResult.state.mode });
+            const result = await shareOrCopy(buildShareText(lastResult.state, lastResult.elapsed));
+            if (result === 'copied') {
+                btn.textContent = 'Copied! ✓';
+                setTimeout(() => { btn.textContent = '↗ Share'; }, 2000);
             }
         });
+    }
+
+    // Daily results put Share front and centre; Play Again only leads back to the menu there
+    function updateResultButtons(mode) {
+        const isDaily = mode === 'daily';
+        const share   = document.getElementById('share-btn');
+        share.classList.toggle('btn-primary',   isDaily);
+        share.classList.toggle('btn-secondary', !isDaily);
+        share.textContent = '↗ Share';
+        document.getElementById('play-again-btn').classList.toggle('hidden', isDaily);
     }
 
     // ── Profile modal ─────────────────────────────────────────────────────────
