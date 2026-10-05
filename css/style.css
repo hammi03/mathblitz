@@ -1183,4 +1183,3 @@ h1[tabindex="-1"]:focus:not(:focus-visible) { outline: none; }
 }
 .legal .summary h2 { margin-top: 0; }
 .legal .muted { color: var(--haze); font-size: 0.9rem; }
-.legal .todo { background: var(--amber); color: var(--court); padding: 0 0.3rem; border-radius: 4px; font-weight: 700; }
