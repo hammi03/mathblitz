@@ -271,6 +271,7 @@ const App = (() => {
     function updateStreakDisplay(streak) {
         currentStreak = streak;
         document.getElementById('streak-count').textContent = streak;
+        document.getElementById('streak-noun').textContent  = streak === 1 ? 'daily' : 'dailies';
         document.getElementById('streak-badge').classList.toggle('hidden', !(streak > 0));
     }
 
