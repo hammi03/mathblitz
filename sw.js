@@ -3,14 +3,14 @@
  * Handles push notifications. Requires HTTPS to activate.
  */
 
-const CACHE = 'quantquiz-v10';
+const CACHE = 'quantquiz-v11';
 
 // Cache core files on install
 self.addEventListener('install', event => {
     self.skipWaiting();
     event.waitUntil(
         caches.open(CACHE).then(cache => cache.addAll([
-            '/', '/index.html', '/css/style.css', '/manifest.webmanifest',
+            '/', '/index.html', '/impressum.html', '/datenschutz.html', '/css/style.css', '/manifest.webmanifest',
             '/icons/qq.svg', '/icons/qq-mark.svg', '/icons/icon-192.png',
             '/fonts/big-shoulders-display.woff2', '/fonts/atkinson-hyperlegible-next.woff2',
             '/js/config.js', '/js/analytics.js', '/js/db.js', '/js/sound.js',
