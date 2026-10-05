@@ -111,15 +111,18 @@ const UI = (() => {
     }
 
     // ── In-app dialog (instead of confirm / prompt) ───────────────────────────
-    // dialog({ title, body, primary, secondary, onOpen }) → Promise of
+    // dialog({ title, body, primary, secondary, onOpen, onPrimary }) → Promise of
     // 'primary' | 'secondary' | 'dismiss' (Escape). body is trusted HTML.
     // The primary action is the big yellow button, the secondary a quiet text
     // button. Focus goes to the primary button and returns to the opener.
+    // onPrimary runs inside the tap (needed for clipboard access on iOS);
+    // returning false keeps the dialog open.
 
     let dialogResolve = null;
     let dialogOpener  = null;
+    let dialogOnPrimary = null;
 
-    function dialog({ title, body = '', primary, secondary, onOpen }) {
+    function dialog({ title, body = '', primary, secondary, onOpen, onPrimary }) {
         if (dialogResolve) closeDialog('dismiss');
         const overlay = document.getElementById('app-dialog');
         document.getElementById('app-dialog-title').textContent = title;
@@ -132,6 +135,7 @@ const UI = (() => {
         return new Promise(resolve => {
             dialogResolve = resolve;
             dialogOpener  = document.activeElement;
+            dialogOnPrimary = onPrimary ?? null;
             overlay.classList.add('active');      // initDialogs makes the page behind inert
             p.focus();
             onOpen?.(overlay);
@@ -142,7 +146,7 @@ const UI = (() => {
         const resolve = dialogResolve;
         const opener  = dialogOpener;
         const overlay = document.getElementById('app-dialog');
-        dialogResolve = dialogOpener = null;
+        dialogResolve = dialogOpener = dialogOnPrimary = null;
         overlay.classList.remove('active');
         resolve?.(result);
         // Back to the opener, unless the caller already moved focus (e.g. to the answer field)
@@ -155,7 +159,10 @@ const UI = (() => {
     function isDialogOpen() { return !!dialogResolve; }
 
     function initAppDialog() {
-        document.getElementById('app-dialog-primary').addEventListener('click',   () => closeDialog('primary'));
+        document.getElementById('app-dialog-primary').addEventListener('click', () => {
+            if (dialogOnPrimary && dialogOnPrimary() === false) return;
+            closeDialog('primary');
+        });
         document.getElementById('app-dialog-secondary').addEventListener('click', () => closeDialog('secondary'));
     }
 

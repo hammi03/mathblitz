@@ -1240,7 +1240,7 @@ const App = (() => {
     }
 
     // Web Share API with clipboard fallback → 'shared' | 'copied' | 'failed'.
-    // allowPrompt: as a last resort show the text to copy by hand (only after a tap).
+    // allowPrompt: as a last resort show the text in a copy dialog (only after a tap).
     async function shareOrCopy(text, { allowPrompt = true } = {}) {
         if (navigator.share) {
             try {
@@ -1254,9 +1254,36 @@ const App = (() => {
             await navigator.clipboard.writeText(text);
             return 'copied';
         } catch {
-            if (allowPrompt) prompt('Copy this:', text);
+            if (allowPrompt) return (await showCopyDialog(text)) ? 'copied' : 'failed';
             return 'failed';
         }
+    }
+
+    // Last resort when sharing and the clipboard API both fail: the text in a
+    // selectable field with a Copy button. Resolves true once it was copied.
+    async function showCopyDialog(text) {
+        let copied = false;
+        const select = field => { field.focus(); field.select(); field.setSelectionRange(0, field.value.length); };
+        await UI.dialog({
+            title:     'Copy this',
+            body:      `<label for="copy-field" class="sr-only">Text to copy</label>` +
+                       `<textarea id="copy-field" class="copy-field" readonly>${escapeHtml(text)}</textarea>` +
+                       `<span id="copy-hint" aria-live="polite"></span>`,
+            primary:   'Copy',
+            secondary: 'Close',
+            onOpen:    overlay => select(overlay.querySelector('#copy-field')),
+            onPrimary: () => {
+                const field = document.getElementById('copy-field');
+                select(field);
+                try { copied = document.execCommand('copy'); } catch { copied = false; }
+                navigator.clipboard?.writeText(text).then(() => { copied = true; }).catch(() => {});
+                if (!copied) {
+                    document.getElementById('copy-hint').textContent = 'Select the text and copy it with your device.';
+                    return false;   // stay open so the text can be copied by hand
+                }
+            },
+        });
+        return copied;   // callers show their own "Copied" feedback
     }
 
     // ── History ───────────────────────────────────────────────────────────────
