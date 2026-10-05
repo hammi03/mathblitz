@@ -3,7 +3,7 @@
  * Handles push notifications. Requires HTTPS to activate.
  */
 
-const CACHE = 'quantquiz-v7';
+const CACHE = 'quantquiz-v8';
 
 // Cache core files on install
 self.addEventListener('install', event => {
@@ -12,7 +12,8 @@ self.addEventListener('install', event => {
         caches.open(CACHE).then(cache => cache.addAll([
             '/', '/index.html', '/css/style.css', '/manifest.webmanifest',
             '/icons/qq.svg', '/icons/qq-mark.svg', '/icons/icon-192.png',
-            '/js/config.js', '/js/analytics.js', '/js/bg.js', '/js/db.js', '/js/sound.js',
+            '/fonts/big-shoulders-display.woff2', '/fonts/atkinson-hyperlegible-next.woff2',
+            '/js/config.js', '/js/analytics.js', '/js/db.js', '/js/sound.js',
             '/js/game.js', '/js/daily.js', '/js/bot-duel.js', '/js/duel-client.js',
             '/js/ui.js', '/js/main.js',
         ]).catch(() => {}))

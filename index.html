@@ -24,8 +24,8 @@
     <meta property="og:image:height" content="630">
     <meta property="og:image:alt" content="QuantQuiz logo and the question 47 × 83">
     <meta name="twitter:card" content="summary_large_image">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+    <link rel="preload" href="fonts/big-shoulders-display.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="preload" href="fonts/atkinson-hyperlegible-next.woff2" as="font" type="font/woff2" crossorigin>
     <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
@@ -41,7 +41,7 @@
     <!-- ── PROFILE MODAL ── -->
     <div id="profile-modal" class="modal-overlay">
         <div class="modal">
-            <h2 style="text-align:center;font-size:1rem;letter-spacing:3px;color:var(--muted);">PROFILE</h2>
+            <h2>Profile</h2>
             <div class="profile-body">
                 <div class="profile-username" id="profile-username">—</div>
                 <div class="profile-rank" id="profile-rank"></div>
@@ -68,7 +68,7 @@
     <div id="rankup-overlay" class="rankup-overlay">
         <div class="rankup-content">
             <div class="rankup-icon" id="rankup-icon">🥈</div>
-            <div class="rankup-title">RANK UP!</div>
+            <div class="rankup-title">New rank</div>
             <div class="rankup-name" id="rankup-name">Silver</div>
         </div>
     </div>
@@ -76,7 +76,7 @@
     <!-- ── SUBMIT PROBLEM MODAL ── -->
     <div id="submit-modal" class="modal-overlay">
         <div class="modal">
-            <h2 style="text-align:center;font-size:1rem;letter-spacing:3px;color:var(--muted);">SUBMIT A PROBLEM</h2>
+            <h2>Submit a problem</h2>
             <div class="submit-equation">
                 <input type="number" id="submit-a" placeholder="47" min="2" max="999">
                 <span class="submit-op">×</span>
@@ -84,7 +84,7 @@
                 <span id="submit-preview-ans" class="submit-preview">= ?</span>
             </div>
             <p id="submit-msg" class="auth-error" style="text-align:center;"></p>
-            <button id="submit-confirm-btn" class="btn-primary">SUBMIT</button>
+            <button id="submit-confirm-btn" class="btn-primary">Submit problem</button>
             <button id="submit-close-btn" class="btn-ghost">Cancel</button>
         </div>
     </div>
@@ -107,7 +107,7 @@
                     <input type="password" id="signin-password" placeholder="••••••••" autocomplete="current-password">
                 </div>
                 <p class="auth-error" id="signin-error"></p>
-                <button id="signin-btn" class="btn-primary">SIGN IN</button>
+                <button id="signin-btn" class="btn-primary">Sign in</button>
             </div>
 
             <div id="tab-signup" class="modal-pane">
@@ -124,7 +124,7 @@
                     <input type="password" id="signup-password" placeholder="at least 6 characters" autocomplete="new-password">
                 </div>
                 <p class="auth-error" id="signup-error"></p>
-                <button id="signup-btn" class="btn-primary">CREATE ACCOUNT</button>
+                <button id="signup-btn" class="btn-primary">Create account</button>
             </div>
 
             <button id="auth-close" class="btn-ghost">Continue as Guest</button>
@@ -216,17 +216,10 @@
         </div>
 
         <div class="action-row">
-            <button id="start-btn" class="btn-primary">START</button>
+            <button id="start-btn" class="btn-primary">Play</button>
             <button id="duel-btn" class="btn-duel">⚔️</button>
         </div>
 
-        <div class="theme-picker">
-            <button class="theme-dot active" data-theme="void"      title="Void">🌌</button>
-            <button class="theme-dot"        data-theme="clouds"    title="Pixel Sky">☁️</button>
-            <button class="theme-dot"        data-theme="meadow"    title="Meadow">🌿</button>
-            <button class="theme-dot"        data-theme="synthwave" title="Synthwave">🌆</button>
-            <button class="theme-dot"        data-theme="space"     title="Deep Space">✨</button>
-        </div>
 
         <div class="menu-bottom">
             <p class="best-label">Personal best: <strong id="best-display">—</strong></p>
@@ -244,19 +237,19 @@
     <div id="screen-game" class="screen">
         <div class="game-header">
             <div class="hud-stat">
-                <span class="hud-label">SCORE</span>
+                <span class="hud-label">Score</span>
                 <span class="hud-value" id="score-display">0</span>
             </div>
             <div class="hud-stat center">
-                <span class="hud-label" id="timer-label">TIME</span>
+                <span class="hud-label" id="timer-label">Time</span>
                 <span class="hud-value accent" id="timer-display">60</span>
             </div>
             <div class="hud-stat center">
-                <span class="hud-label">STREAK</span>
+                <span class="hud-label">Streak</span>
                 <span class="hud-value" id="streak-display">0</span>
             </div>
             <div class="hud-stat right">
-                <span class="hud-label">LEVEL</span>
+                <span class="hud-label">Level</span>
                 <span class="hud-value level-val" id="level-display">1</span>
             </div>
         </div>
@@ -267,7 +260,7 @@
             <div class="question" id="question-display">—</div>
             <div class="answer-row">
                 <input type="number" id="answer-input" placeholder="answer" autocomplete="off" inputmode="numeric">
-                <button id="submit-btn" class="btn-submit">→</button>
+                <button id="submit-btn" class="btn-submit">Enter</button>
             </div>
             <div class="feedback" id="feedback">&nbsp;</div>
         </div>
@@ -307,11 +300,11 @@
             </div>
         </div>
 
-        <div class="new-best" id="new-best">NEW BEST!</div>
+        <div class="new-best" id="new-best">New personal best</div>
         <p class="save-status" id="save-status"></p>
 
         <div class="result-actions">
-            <button id="play-again-btn" class="btn-primary">PLAY AGAIN</button>
+            <button id="play-again-btn" class="btn-primary">Play again</button>
             <div class="result-actions-row">
                 <button id="share-btn" class="btn-secondary">↗ Share</button>
                 <button id="submit-problem-btn" class="btn-secondary hidden">🎯 Submit a Problem</button>
@@ -420,7 +413,7 @@
                 <div class="question" id="duel-question">—</div>
                 <div class="answer-row">
                     <input type="number" id="duel-input" placeholder="answer" autocomplete="off" inputmode="numeric">
-                    <button id="duel-submit-btn" class="btn-submit">→</button>
+                    <button id="duel-submit-btn" class="btn-submit">Enter</button>
                 </div>
                 <div class="feedback" id="duel-feedback">&nbsp;</div>
             </div>
@@ -452,7 +445,7 @@
                 </div>
             </div>
             <div class="result-actions">
-                <button id="duel-again-btn" class="btn-primary">DUEL AGAIN</button>
+                <button id="duel-again-btn" class="btn-primary">Duel again</button>
                 <button id="duel-menu-btn" class="btn-ghost">Menu</button>
             </div>
         </div>
@@ -463,7 +456,6 @@
     <script src="https://cdn.jsdelivr.net/npm/socket.io-client@4/dist/socket.io.min.js"></script>
     <script src="js/config.js"></script>
     <script src="js/analytics.js"></script>
-    <script src="js/bg.js"></script>
     <script src="js/db.js"></script>
     <script src="js/sound.js"></script>
     <script src="js/game.js"></script>

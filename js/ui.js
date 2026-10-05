@@ -37,6 +37,7 @@ const UI = (() => {
     }
 
     function updateTimer(timeLeft, totalTime) {
+        document.getElementById('timer-label').textContent = 'Time';   // may still say "Done" after a sprint
         document.getElementById('timer-display').textContent = timeLeft;
         document.getElementById('progress-fill').style.width = `${(timeLeft / totalTime) * 100}%`;
         const el = document.getElementById('timer-display');
@@ -46,7 +47,7 @@ const UI = (() => {
     }
 
     function updateSprintProgress(answered, total) {
-        document.getElementById('timer-label').textContent   = 'DONE';
+        document.getElementById('timer-label').textContent   = 'Done';
         document.getElementById('timer-display').textContent = `${answered}/${total}`;
         document.getElementById('timer-display').style.color = 'var(--accent)';
         document.getElementById('progress-fill').style.width = `${(answered / total) * 100}%`;
@@ -54,7 +55,7 @@ const UI = (() => {
     }
 
     function updateZenTimer(elapsed) {
-        document.getElementById('timer-label').textContent   = 'TIME';
+        document.getElementById('timer-label').textContent   = 'Time';
         document.getElementById('timer-display').textContent = elapsed + 's';
         document.getElementById('timer-display').style.color = 'var(--accent)';
     }

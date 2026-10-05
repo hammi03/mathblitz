@@ -213,7 +213,7 @@ const App = (() => {
     function setLoading(btnId, loading) {
         const btn = document.getElementById(btnId);
         btn.disabled = loading;
-        btn.textContent = loading ? '...' : (btnId === 'signin-btn' ? 'SIGN IN' : 'CREATE ACCOUNT');
+        btn.textContent = loading ? '...' : (btnId === 'signin-btn' ? 'Sign in' : 'Create account');
     }
 
     // ── Menu ──────────────────────────────────────────────────────────────────
@@ -290,30 +290,6 @@ const App = (() => {
 
     function refreshBest() {
         UI.updateBestDisplay(formatBest(settings.mode, settings.difficulty, settings.timeLimit));
-    }
-
-    // ── Themes ───────────────────────────────────────────────────────────────
-
-    function applyTheme(theme) {
-        [...document.body.classList]
-            .filter(c => c.startsWith('theme-'))
-            .forEach(c => document.body.classList.remove(c));
-        if (theme !== 'void') document.body.classList.add(`theme-${theme}`);
-        document.querySelectorAll('.theme-dot').forEach(btn =>
-            btn.classList.toggle('active', btn.dataset.theme === theme));
-        ThemeBG.apply(theme);
-    }
-
-    function initThemes() {
-        ThemeBG.init();
-        const saved = localStorage.getItem('quantquiz_theme') || 'void';
-        applyTheme(saved);
-        document.querySelectorAll('.theme-dot').forEach(btn => {
-            btn.addEventListener('click', () => {
-                applyTheme(btn.dataset.theme);
-                localStorage.setItem('quantquiz_theme', btn.dataset.theme);
-            });
-        });
     }
 
     // ── Push notifications ────────────────────────────────────────────────────
@@ -1263,7 +1239,6 @@ const App = (() => {
         initAuth();
         initLeaderboard();
         initDuel();
-        initThemes();
         initServiceWorker();
         initHistory();
         initSubmitProblem();
