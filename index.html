@@ -40,6 +40,19 @@
     <!-- ── REACTION OVERLAY ── -->
     <div id="reaction-overlay" class="reaction-overlay"></div>
 
+    <!-- ── APP DIALOG (replaces confirm / prompt) ── -->
+    <div id="app-dialog" class="modal-overlay">
+        <div class="modal app-dialog" role="dialog" aria-modal="true" aria-labelledby="app-dialog-title" aria-describedby="app-dialog-body">
+            <h2 id="app-dialog-title"></h2>
+            <div id="app-dialog-body" class="app-dialog-body"></div>
+            <button type="button" id="app-dialog-primary" class="btn-primary"></button>
+            <button type="button" id="app-dialog-secondary" class="btn-text"></button>
+        </div>
+    </div>
+
+    <!-- ── TOAST (replaces alert) ── -->
+    <div id="toast" class="toast" role="status" aria-live="polite" aria-atomic="true"></div>
+
     <!-- ── PROFILE MODAL ── -->
     <div id="profile-modal" class="modal-overlay">
         <div class="modal" role="dialog" aria-modal="true" aria-labelledby="profile-title">

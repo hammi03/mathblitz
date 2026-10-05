@@ -1184,3 +1184,81 @@ h1[tabindex="-1"]:focus:not(:focus-visible) { outline: none; }
 }
 .legal .summary h2 { margin-top: 0; }
 .legal .muted { color: var(--haze); font-size: 0.9rem; }
+
+/* ── In-app dialog and toast (no native confirm / alert / prompt) ── */
+.app-dialog { gap: 0.9rem; text-align: center; }
+.app-dialog h2 {
+    font-family: var(--font-num);
+    font-size: 2rem;
+    font-weight: 900;
+    line-height: 1.05;
+    color: var(--line);
+}
+.app-dialog-body { color: var(--haze); font-size: 0.95rem; line-height: 1.5; }
+.app-dialog-body:empty { display: none; }
+.app-dialog-body strong { color: var(--line); }
+.app-dialog-body .warn {
+    display: block;
+    margin-top: 0.3rem;
+    padding: 0.55rem 0.75rem;
+    border-radius: var(--r-sm);
+    background: rgba(255, 197, 61, 0.12);
+    color: var(--amber);
+    font-weight: 700;
+}
+.copy-field {
+    width: 100%;
+    min-height: 6.5rem;
+    margin-top: 0.4rem;
+    padding: 0.6rem 0.75rem;
+    background: var(--inset);
+    border: 2px solid var(--hairline);
+    border-radius: var(--r-sm);
+    color: var(--line);
+    font: inherit;
+    font-size: 0.9rem;
+    text-align: left;
+    resize: none;
+    user-select: text;
+    -webkit-user-select: text;
+}
+.copy-field:focus { border-color: var(--line); outline: none; }
+.btn-text {
+    align-self: center;
+    min-height: 44px;
+    padding: 0.4rem 1rem;
+    background: none;
+    border: none;
+    color: var(--haze);
+    font-size: 0.95rem;
+    font-weight: 600;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+    cursor: pointer;
+}
+.btn-text:hover { color: var(--line); }
+
+.toast {
+    position: fixed;
+    left: 50%;
+    bottom: calc(1.25rem + env(safe-area-inset-bottom));
+    z-index: 450;
+    max-width: min(420px, calc(100vw - 2rem));
+    padding: 0.8rem 1.1rem;
+    background: var(--line);
+    color: var(--court);
+    border-radius: var(--r-md);
+    font-size: 0.95rem;
+    font-weight: 700;
+    text-align: center;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+    transform: translate(-50%, 1rem);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s, transform 0.2s;
+}
+.toast.show { opacity: 1; transform: translate(-50%, 0); }
+.toast:empty { visibility: hidden; }
+
+/* While the leave dialog is open the round is paused: hide the question */
+.paused .question, .paused #duel-question { filter: blur(14px); }

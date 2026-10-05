@@ -1501,6 +1501,7 @@ const App = (() => {
     async function init() {
         UI.mountNumpads();
         UI.initDialogs();
+        UI.initAppDialog();
         UI.initPressedState();
         initMenu();
         initAnswerInput();
