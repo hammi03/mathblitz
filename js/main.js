@@ -339,7 +339,7 @@ const App = (() => {
             // Show a test notification
             new Notification('QuantQuiz', {
                 body: "Notifications enabled! We'll remind you about the daily challenge.",
-                icon: '/icon.png',
+                icon: '/icons/icon-192.png',
             });
         } else {
             btn.textContent = '🔕';

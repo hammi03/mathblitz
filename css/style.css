@@ -97,6 +97,11 @@ body {
     letter-spacing: 0.3px;
 }
 
+.logo h1 { display: flex; align-items: center; justify-content: center; gap: 0.6rem; }
+.logo-mark { height: 0.8em; width: auto; }
+
+.site-footer { text-align: center; color: var(--muted); font-size: 0.72rem; padding-top: 0.5rem; }
+
 /* ── Section label ── */
 .section { display: flex; flex-direction: column; gap: 0.5rem; }
 h2 {

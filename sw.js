@@ -3,14 +3,15 @@
  * Handles push notifications. Requires HTTPS to activate.
  */
 
-const CACHE = 'quantquiz-v6';
+const CACHE = 'quantquiz-v7';
 
 // Cache core files on install
 self.addEventListener('install', event => {
     self.skipWaiting();
     event.waitUntil(
         caches.open(CACHE).then(cache => cache.addAll([
-            '/', '/index.html', '/css/style.css',
+            '/', '/index.html', '/css/style.css', '/manifest.webmanifest',
+            '/icons/qq.svg', '/icons/qq-mark.svg', '/icons/icon-192.png',
             '/js/config.js', '/js/analytics.js', '/js/bg.js', '/js/db.js', '/js/sound.js',
             '/js/game.js', '/js/daily.js', '/js/bot-duel.js', '/js/duel-client.js',
             '/js/ui.js', '/js/main.js',
@@ -52,8 +53,8 @@ self.addEventListener('push', event => {
     event.waitUntil(
         self.registration.showNotification(data.title || 'QuantQuiz', {
             body:    data.body  || "Your daily challenge is ready! Can you top the leaderboard today? 🧠",
-            icon:    '/icon.png',
-            badge:   '/icon.png',
+            icon:    '/icons/icon-192.png',
+            badge:   '/icons/icon-192.png',
             tag:     'daily-reminder',
             renotify: false,
             data:    { url: '/' },
