@@ -138,6 +138,8 @@
             <div class="logo">
                 <h1><img src="icons/qq-mark.svg" alt="" class="logo-mark" width="54" height="49"> QuantQuiz</h1>
             </div>
+            <div class="header-actions">
+            <button class="icon-btn sound-toggle" aria-label="Sound" aria-pressed="true"></button>
             <div class="user-bar" id="user-bar">
                 <div id="user-guest" class="user-info">
                     <button id="sign-in-menu-btn" class="btn-ghost small">Sign in</button>
@@ -147,6 +149,7 @@
                     <span id="user-display-name" class="user-name">—</span>
                     <button id="sign-out-btn" class="btn-ghost small">Sign out</button>
                 </div>
+            </div>
             </div>
         </header>
         <p class="tagline">Mental math in 60-second rounds.</p>
@@ -222,7 +225,6 @@
             <div class="menu-bottom-btns">
                 <button id="leaderboard-btn" class="btn-secondary">Leaderboard</button>
                 <button id="history-btn" class="btn-secondary">History</button>
-                <button class="btn-secondary sound-toggle" aria-pressed="true">Sound on</button>
                 <button id="notif-btn" class="btn-secondary" title="Enable daily reminders" aria-label="Enable daily reminders">🔔</button>
             </div>
         </div>
@@ -265,7 +267,7 @@
 
         <div class="game-footer">
             <button id="quit-btn" class="btn-ghost">Quit</button>
-            <button class="btn-ghost sound-toggle" aria-pressed="true">Sound on</button>
+            <button class="icon-btn sound-toggle" aria-label="Sound" aria-pressed="true"></button>
         </div>
 
         <div class="numpad" data-input="answer-input" data-submit="submit-btn"></div>

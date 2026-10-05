@@ -769,7 +769,28 @@ h2 {
 
 /* ── Menu bottom ── */
 .menu-bottom { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; flex-wrap: wrap; }
-.menu-bottom-btns { display: flex; gap: 0.4rem; }
+.menu-bottom-btns { display: flex; gap: 0.5rem; width: 100%; }
+.menu-bottom-btns .btn-secondary { flex: 1; }
+
+/* Header: sound switch next to Sign in */
+.header-actions { display: flex; align-items: center; gap: 0.5rem; min-width: 0; }
+.icon-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    flex-shrink: 0;
+    background: none;
+    border: 1px solid var(--hairline-2);
+    border-radius: var(--r-sm);
+    color: var(--haze);
+    cursor: pointer;
+    transition: border-color 0.15s, color 0.15s;
+}
+.icon-btn:hover { border-color: var(--line); color: var(--line); }
+.icon-btn[aria-pressed="false"] { color: var(--haze); opacity: 0.8; }
+.icon-btn[aria-pressed="true"]  { color: var(--line); }
 .site-footer { color: var(--haze); font-size: 0.8rem; padding-top: 0.5rem; }
 
 /* ── User bar (top right of the start screen) ── */

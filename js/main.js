@@ -384,11 +384,19 @@ const App = (() => {
 
     // ── Sound switch (menu and game screen) ───────────────────────────────────
 
+    // Speaker icon; the state is in aria-pressed, the name stays "Sound"
+    const SPEAKER = '<path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z" fill="currentColor"/>';
+    const ICON_ON  = `<svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" focusable="false">${SPEAKER}` +
+                     '<path d="M15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>';
+    const ICON_OFF = `<svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" focusable="false">${SPEAKER}` +
+                     '<path d="M16 9.5l5 5m0-5l-5 5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>';
+
     function initSoundToggles() {
         const buttons = document.querySelectorAll('.sound-toggle');
         const render  = () => buttons.forEach(b => {
-            b.textContent = Sound.isEnabled() ? 'Sound on' : 'Sound off';
+            b.innerHTML = Sound.isEnabled() ? ICON_ON : ICON_OFF;
             b.setAttribute('aria-pressed', String(Sound.isEnabled()));
+            b.title = Sound.isEnabled() ? 'Sound on' : 'Sound off';
         });
         buttons.forEach(b => b.addEventListener('click', () => { Sound.toggle(); render(); }));
         render();
