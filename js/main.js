@@ -784,6 +784,11 @@ const App = (() => {
         });
         document.getElementById('challenge-btn').addEventListener('click', createChallenge);
 
+        // Online-only parts: friend challenges and emoji reactions (the bot doesn't react)
+        const online = DuelClient.isOnline();
+        document.getElementById('challenge-btn').classList.toggle('hidden', !online);
+        document.querySelector('.reaction-bar').classList.toggle('hidden', !online);
+
         // Duel answer input
         const duelInput  = document.getElementById('duel-input');
         const duelSubmit = document.getElementById('duel-submit-btn');
@@ -833,7 +838,7 @@ const App = (() => {
         });
 
         DuelClient.on('matched', ({ you, opponent, opponentIsBot, offline, playerIdx, firstQuestion, duration }) => {
-            track('duel_matched', { bot: !!opponentIsBot });
+            track('duel_matched', { opponent: opponentIsBot ? 'bot' : 'human' });
             _duelPlayerIdx = playerIdx;
             _duelDuration  = duration || 60;
             _duelVsBot     = !!opponentIsBot;
@@ -925,7 +930,7 @@ const App = (() => {
             track('duel_finished', {
                 result: winner === -1 ? 'draw' : winner === _duelPlayerIdx ? 'win' : 'loss',
                 reason,
-                bot:    _duelVsBot,
+                opponent: _duelVsBot ? 'bot' : 'human',
             });
             const me  = players[_duelPlayerIdx];
             const opp = players[1 - _duelPlayerIdx];
@@ -1013,6 +1018,7 @@ const App = (() => {
     let _challengeLink = null;
 
     async function createChallenge() {
+        if (!DuelClient.isOnline()) return;
         if (_challengeLink) { await shareChallengeLink({ fromTap: true }); return; }
         DuelClient.createChallenge(await DB.getAccessToken(), settings.difficulty);
     }
@@ -1040,6 +1046,11 @@ const App = (() => {
         params.delete('duel');
         const rest = params.toString();
         history.replaceState(null, '', location.pathname + (rest ? `?${rest}` : ''));
+
+        if (!DuelClient.isOnline()) {
+            alert('Online duels are coming soon! Until then, tap ⚔️ to duel our bot.');
+            return;
+        }
 
         enterDuelSearch('Joining duel', 'Connecting to your friend...');
         track('duel_search_started', { via: 'challenge' });
