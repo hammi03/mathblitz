@@ -54,14 +54,17 @@ const Daily = (() => {
         return out;
     }
 
-    // ── Guest progress: { last: 'YYYY-MM-DD' (UTC), streak } ──────────────────
+    // ── Guest progress: { attempt, last, streak } (UTC dates) ─────────────────
+    // attempt: day today's daily was started (one try per day, used up on start)
+    // last:    last day that counted for the streak (at least one answer given)
 
     function readGuest() {
         try { return JSON.parse(localStorage.getItem(GUEST_KEY) || '{}'); } catch { return {}; }
     }
 
     function guestDone() {
-        return readGuest().last === getTodayISO();
+        const g = readGuest();
+        return g.attempt === getTodayISO() || g.last === getTodayISO();
     }
 
     function guestStreak() {
@@ -70,15 +73,26 @@ const Daily = (() => {
         return g.last === today || g.last === isoDaysBefore(today, 1) ? (g.streak ?? 0) : 0;
     }
 
-    // Starting counts as today's attempt, like the server-side daily
-    function markGuestStarted() {
-        const today = getTodayISO();
-        const g = readGuest();
-        if (g.last === today) return g.streak ?? 1;
-        const streak = g.last === isoDaysBefore(today, 1) ? (g.streak ?? 0) + 1 : 1;
-        try { localStorage.setItem(GUEST_KEY, JSON.stringify({ last: today, streak })); } catch { /* private mode */ }
-        return streak;
+    function writeGuest(g) {
+        try { localStorage.setItem(GUEST_KEY, JSON.stringify(g)); } catch { /* private mode */ }
     }
 
-    return { QUESTION_COUNT, getTodayISO, getDateLabel, guestQuestions, guestDone, guestStreak, markGuestStarted };
+    // Starting uses up today's attempt, like the server-side daily
+    function markGuestStarted() {
+        writeGuest({ ...readGuest(), attempt: getTodayISO() });
+    }
+
+    // A finished daily with at least one answer extends the streak; returns it
+    function recordGuestDaily() {
+        const today = getTodayISO();
+        const g = readGuest();
+        if (g.last !== today) {
+            g.streak = g.last === isoDaysBefore(today, 1) ? (g.streak ?? 0) + 1 : 1;
+            g.last   = today;
+            writeGuest(g);
+        }
+        return g.streak;
+    }
+
+    return { QUESTION_COUNT, getTodayISO, getDateLabel, guestQuestions, guestDone, guestStreak, markGuestStarted, recordGuestDaily };
 })();

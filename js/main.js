@@ -114,6 +114,9 @@ const App = (() => {
         return { ...next, goalJustMet: next.rounds === DAILY_GOAL };
     }
 
+    // Set when the last finished round had no answers: it didn't count
+    let emptyRound = false;
+
     // Pips + one line of text; shared by the menu and the results screen
     function renderToday(el) {
         const p       = loadProgress();
@@ -121,13 +124,16 @@ const App = (() => {
         const atRisk  = p.rounds === 0 && p.streak > 0;
         const pips    = Array.from({ length: DAILY_GOAL }, (_, i) =>
             `<span class="pip${i < done ? ' on' : ''}"></span>`).join('');
+        const restart = emptyRound && el.closest('#screen-results');
         const text =
+            restart                   ? "No answers, so it didn't count. Play again!" :
             atRisk                    ? 'Play today to keep your streak alive' :
             p.rounds === 0            ? `Today's goal: ${DAILY_GOAL} rounds` :
             p.rounds < DAILY_GOAL     ? `${DAILY_GOAL - p.rounds} more ${DAILY_GOAL - p.rounds === 1 ? 'round' : 'rounds'} to today's goal` :
                                         `Goal done for today`;
         const streak = p.streak > 0 ? `<span class="today-streak">🔥 ${p.streak}</span>` : '';
-        el.classList.toggle('at-risk', atRisk);
+        el.classList.toggle('at-risk', atRisk && !restart);
+        el.classList.toggle('empty-round', !!restart);
         el.classList.toggle('goal-done', p.rounds >= DAILY_GOAL);
         el.innerHTML = `<span class="pips">${pips}</span><span class="today-text">${text}</span>${streak}`;
     }
@@ -539,7 +545,7 @@ const App = (() => {
         try {
             if (settings.mode === 'daily' && !currentUser) {
                 // Guests: local question set, the attempt is used up on start
-                updateStreakDisplay(Daily.markGuestStarted());
+                Daily.markGuestStarted();
                 dailyDone = true;
                 updateDailyButton();
                 gameSettings.predefinedQuestions = Daily.guestQuestions();
@@ -685,27 +691,32 @@ const App = (() => {
         // Save to local history (all modes)
         saveGameHistory(state, elapsed);
 
+        // A round only counts (goal, streak, best) once at least one answer was given
+        const answered = state.correct + state.wrong;
+        const counts   = answered >= 1;
+        emptyRound = !counts;
+
         let isNewBest = false;
         let prevBest  = null;
         if (state.mode === 'classic' || state.mode === 'sprint' || state.mode === 'zen') {
             const bestValue = state.mode === 'sprint' ? parseFloat(elapsed) : state.score;
             prevBest  = getBest(state.mode, state.difficulty, settings.timeLimit);
-            isNewBest = setBest(state.mode, state.difficulty, settings.timeLimit, bestValue);
+            if (counts) isNewBest = setBest(state.mode, state.difficulty, settings.timeLimit, bestValue);
             refreshBest();
         }
-        const progress = recordRound();
+        const progress = counts ? recordRound() : null;
+        if (counts && state.mode === 'daily' && !currentUser) updateStreakDisplay(Daily.recordGuestDaily());
         lastResult = { state, elapsed };
 
         // A real new best (not the very first round) gets the fanfare and confetti
         const celebrate = isNewBest && prevBest !== null && state.score > 0;
         if (celebrate) Sound.newBest(); else Sound.gameEnd();
         UI.showResults(state, elapsed, { isNewBest, prevBest, celebrate });
-        if (progress.goalJustMet) setTimeout(() => Sound.goal(), celebrate ? 1100 : 600);
+        if (progress?.goalJustMet) setTimeout(() => Sound.goal(), celebrate ? 1100 : 600);
         refreshToday();
         updateResultButtons(state.mode, isNewBest ? null : prevBest);
         prepareShareCard();
 
-        const answered = state.correct + state.wrong;
         track('game_end', {
             mode:     state.mode,
             score:    state.score,
