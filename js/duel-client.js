@@ -28,7 +28,7 @@ const DuelClient = (() => {
         const events = [
             'searching', 'matched', 'countdown', 'duel_start',
             'answer_result', 'opponent_update', 'timer_tick',
-            'duel_end', 'match_cancelled', 'reaction',
+            'duel_end', 'match_cancelled', 'reaction', 'duel_error',
         ];
         events.forEach(e => socket.on(e, data => _dispatch(e, data)));
 
@@ -42,9 +42,10 @@ const DuelClient = (() => {
         // handlers are kept — they were registered once during init
     }
 
-    function findMatch(username) {
+    // token = Supabase access token; the server derives the username from it
+    function findMatch(token) {
         connect();
-        socket.emit('find_match', { username });
+        socket.emit('find_match', { token });
     }
 
     function cancelMatch()         { socket?.emit('cancel_match'); }

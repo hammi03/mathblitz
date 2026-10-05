@@ -1,5 +1,6 @@
 /**
- * db.js — All Supabase operations: auth, scores, leaderboard, daily, streaks.
+ * db.js — All Supabase operations: auth, game sessions, leaderboard, daily.
+ * Scores, XP and streaks are computed server-side (see supabase-security.sql).
  */
 
 const SUPABASE_CONFIGURED =
@@ -55,84 +56,59 @@ const DB = (() => {
     function onAuthChange(callback) {
         if (!_client) return { data: { subscription: { unsubscribe: () => {} } } };
         return _client.auth.onAuthStateChange((event, session) => {
-            callback(event, session?.user ?? null);
+            // Deferred: awaiting Supabase calls inside this callback can deadlock the auth client
+            setTimeout(() => callback(event, session?.user ?? null), 0);
         });
     }
 
-    // ── Regular scores ────────────────────────────────────────────────────────
+    async function getAccessToken() {
+        if (!_client) return null;
+        const { data } = await _client.auth.getSession();
+        return data.session?.access_token ?? null;
+    }
 
-    async function saveScore(userId, gameState, elapsed, settings) {
-        if (!_client) return;
-        const { error } = await _client.from('scores').insert({
-            user_id:         userId,
-            mode:            gameState.mode,
-            difficulty:      gameState.difficulty,
-            time_limit:      settings.timeLimit ?? 60,
-            score:           gameState.score,
-            correct:         gameState.correct,
-            wrong:           gameState.wrong,
-            best_streak:     gameState.bestStreak,
-            elapsed_seconds: parseFloat(elapsed),
+    async function isUsernameAvailable(username) {
+        if (!_client) return true;
+        const { data, error } = await _client.rpc('username_available', { p_username: username });
+        if (error) return true;   // let the signup trigger decide
+        return data;
+    }
+
+    // ── Games — questions and scoring happen server-side ──────────────────────
+
+    function toQuestions(raw) {
+        return raw.map(q => ({ display: `${q.a} × ${q.b}`, answer: q.a * q.b }));
+    }
+
+    async function startGame(mode, difficulty, timeLimit) {
+        if (!_client) throw new Error('Supabase not configured');
+        const { data, error } = await _client.rpc('start_game', {
+            p_mode: mode, p_difficulty: difficulty, p_time_limit: timeLimit,
         });
         if (error) throw error;
-
-        // Update cumulative total_xp in profile
-        const { data: pData } = await _client
-            .from('profiles').select('total_xp').eq('id', userId).single();
-        const newXP = (pData?.total_xp || 0) + gameState.score;
-        await _client.from('profiles').update({ total_xp: newXP }).eq('id', userId);
+        return { sessionId: data.session_id, questions: toQuestions(data.questions) };
     }
 
-    // ── Streaks ───────────────────────────────────────────────────────────────
+    async function startDaily() {
+        if (!_client) throw new Error('Supabase not configured');
+        const { data, error } = await _client.rpc('start_daily');
+        if (error) throw error;
+        return { sessionId: data.session_id, questions: toQuestions(data.questions) };
+    }
 
-    async function updateStreak(userId) {
-        if (!_client || !userId) return null;
-
-        const { data: profile } = await _client
-            .from('profiles')
-            .select('current_streak, longest_streak, last_played_date')
-            .eq('id', userId)
-            .single();
-
-        if (!profile) return null;
-
-        const today     = new Date().toISOString().split('T')[0];
-        const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
-
-        // Already played today — don't reset or increment
-        if (profile.last_played_date === today) {
-            return { current: profile.current_streak, longest: profile.longest_streak };
-        }
-
-        const newStreak = profile.last_played_date === yesterday
-            ? (profile.current_streak || 0) + 1
-            : 1;
-        const longest = Math.max(newStreak, profile.longest_streak || 0);
-
-        await _client
-            .from('profiles')
-            .update({ current_streak: newStreak, longest_streak: longest, last_played_date: today })
-            .eq('id', userId);
-
-        return { current: newStreak, longest };
+    // Returns { ok, reason?, score, correct, wrong, elapsed, old_xp, total_xp, current_streak, ... }
+    async function submitGame(sessionId, answers) {
+        if (!_client) throw new Error('Supabase not configured');
+        const MAX_INT = 2147483647;
+        const { data, error } = await _client.rpc('submit_game', {
+            p_session: sessionId,
+            p_answers: answers.map(a => Math.abs(a) > MAX_INT ? -1 : a),
+        });
+        if (error) throw error;
+        return data;
     }
 
     // ── Daily challenge ───────────────────────────────────────────────────────
-
-    async function saveDailyScore(userId, gameState, elapsed) {
-        if (!_client) return;
-        const today = new Date().toISOString().split('T')[0];
-        const { error } = await _client.from('daily_scores').upsert({
-            user_id:         userId,
-            date:            today,
-            score:           gameState.score,
-            correct:         gameState.correct,
-            wrong:           gameState.wrong,
-            best_streak:     gameState.bestStreak,
-            elapsed_seconds: parseFloat(elapsed),
-        }, { onConflict: 'user_id,date' });
-        if (error) throw error;
-    }
 
     async function getDailyLeaderboard(date, limit = 25) {
         if (!_client) return [];
@@ -140,37 +116,15 @@ const DB = (() => {
             .from('daily_scores')
             .select('score, elapsed_seconds, correct, wrong, best_streak, profiles(username)')
             .eq('date', date)
+            .not('completed_at', 'is', null)
             .order('score', { ascending: false })
+            .order('elapsed_seconds', { ascending: true })
             .limit(limit);
         if (error) throw error;
-        return data ?? [];
+        return (data ?? []).map(r => ({ ...r, username: r.profiles?.username }));
     }
 
-    // ── Community questions ───────────────────────────────────────────────────
-
-    async function getCommunityQuestions(limit = 20) {
-        if (!_client) return [];
-        const { data, error } = await _client
-            .from('community_questions')
-            .select('question_text, answer')
-            .eq('approved', true)
-            .order('created_at', { ascending: false })
-            .limit(limit);
-        if (error) return [];
-        return (data ?? []).map(q => ({ display: q.question_text, answer: q.answer }));
-    }
-
-    async function submitCommunityQuestion(userId, a, b) {
-        if (!_client) throw new Error('Supabase not configured');
-        const { error } = await _client.from('community_questions').insert({
-            submitted_by:  userId,
-            question_text: `${a} × ${b}`,
-            answer:        a * b,
-            approved:      false,
-        });
-        if (error) throw error;
-    }
-
+    // True once the user has *started* today's daily (one attempt per day)
     async function hasUserCompletedDaily(userId, date) {
         if (!_client || !userId) return false;
         const { data } = await _client
@@ -178,28 +132,42 @@ const DB = (() => {
             .select('id')
             .eq('user_id', userId)
             .eq('date', date)
-            .single();
+            .maybeSingle();
         return !!data;
+    }
+
+    // ── Community questions ───────────────────────────────────────────────────
+
+    async function getCommunityQuestions(count = 20) {
+        if (!_client) return [];
+        const { data, error } = await _client
+            .from('community_questions')
+            .select('question_text, answer')
+            .eq('approved', true)
+            .order('created_at', { ascending: false })
+            .limit(200);
+        if (error) return [];
+        const qs = (data ?? []).map(q => ({ display: q.question_text, answer: q.answer }));
+        for (let i = qs.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [qs[i], qs[j]] = [qs[j], qs[i]];
+        }
+        return qs.slice(0, count);
+    }
+
+    async function submitCommunityQuestion(a, b) {
+        if (!_client) throw new Error('Supabase not configured');
+        const { error } = await _client.rpc('submit_community_question', { p_a: a, p_b: b });
+        if (error) throw error;
     }
 
     // ── Global leaderboard ────────────────────────────────────────────────────
 
     async function getLeaderboard(mode, difficulty, timeLimit, limit = 25) {
         if (!_client) return [];
-
-        let query = _client
-            .from('scores')
-            .select('score, elapsed_seconds, correct, wrong, best_streak, created_at, profiles(username)')
-            .eq('mode', mode)
-            .eq('difficulty', difficulty);
-
-        if (mode === 'classic') query = query.eq('time_limit', timeLimit);
-
-        query = mode === 'sprint'
-            ? query.order('elapsed_seconds', { ascending: true })
-            : query.order('score', { ascending: false });
-
-        const { data, error } = await query.limit(limit);
+        const { data, error } = await _client.rpc('get_leaderboard', {
+            p_mode: mode, p_difficulty: difficulty, p_time_limit: timeLimit, p_limit: limit,
+        });
         if (error) throw error;
         return data ?? [];
     }
@@ -221,15 +189,16 @@ const DB = (() => {
             .from('profiles')
             .select('username, total_xp, current_streak, longest_streak')
             .eq('username', username)
-            .single();
+            .maybeSingle();
         return data;
     }
 
     return {
         isConfigured: SUPABASE_CONFIGURED,
         signUp, signIn, signOut, getUser, getProfile, onAuthChange,
-        saveScore, updateStreak,
-        saveDailyScore, getDailyLeaderboard, hasUserCompletedDaily,
+        getAccessToken, isUsernameAvailable,
+        startGame, startDaily, submitGame,
+        getDailyLeaderboard, hasUserCompletedDaily,
         getLeaderboard, getGlobalLeaderboard, getUserProfileByUsername,
         getCommunityQuestions, submitCommunityQuestion,
     };

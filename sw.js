@@ -3,7 +3,7 @@
  * Handles push notifications. Requires HTTPS to activate.
  */
 
-const CACHE = 'quantquiz-v3';
+const CACHE = 'quantquiz-v4';
 
 // Cache core files on install
 self.addEventListener('install', event => {
@@ -27,10 +27,22 @@ self.addEventListener('activate', event => {
     );
 });
 
-// Serve from cache when offline
+// Network first for our own files so updates reach players immediately;
+// fall back to the cache when offline. Other origins (Supabase, CDNs) pass through.
 self.addEventListener('fetch', event => {
+    const req = event.request;
+    if (req.method !== 'GET' || new URL(req.url).origin !== self.location.origin) return;
+
     event.respondWith(
-        caches.match(event.request).then(cached => cached || fetch(event.request))
+        fetch(req)
+            .then(res => {
+                if (res.ok) {
+                    const copy = res.clone();
+                    caches.open(CACHE).then(cache => cache.put(req, copy));
+                }
+                return res;
+            })
+            .catch(() => caches.match(req))
     );
 });
 

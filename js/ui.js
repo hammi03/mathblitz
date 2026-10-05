@@ -2,6 +2,14 @@
  * ui.js — All DOM reads/writes live here.
  * Nothing here knows about game rules.
  */
+
+// Escape any user- or server-provided text before putting it into innerHTML
+function escapeHtml(value) {
+    return String(value ?? '').replace(/[&<>"']/g, c => (
+        { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
+    ));
+}
+
 const UI = (() => {
 
     const screens = {
@@ -168,7 +176,7 @@ const UI = (() => {
         }
         list.innerHTML = entries.map((e, i) => {
             const date    = new Date(e.ts).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
-            const mode    = MODE_LABEL[e.mode] ?? e.mode;
+            const mode    = MODE_LABEL[e.mode] ?? escapeHtml(e.mode);
             const diff    = DIFF_LABEL[e.diff] ?? '';
             const elapsed = e.mode === 'sprint' ? ` · ${e.elapsed}s` : '';
             const total   = e.correct + e.wrong;
@@ -178,8 +186,8 @@ const UI = (() => {
                 ? `<div class="history-qa">` +
                   e.questions.map(q =>
                       `<div class="history-qa-item ${q.correct ? 'correct-q' : 'wrong-q'}">
-                          <span>${q.display}</span>
-                          <span>${q.correct ? '✓ ' + q.answer : '✗ ' + q.given + ' → ' + q.answer}</span>
+                          <span>${escapeHtml(q.display)}</span>
+                          <span>${escapeHtml(q.correct ? '✓ ' + q.answer : '✗ ' + q.given + ' → ' + q.answer)}</span>
                        </div>`
                   ).join('') +
                   `</div>`
@@ -193,9 +201,9 @@ const UI = (() => {
                 <div class="history-entry" data-idx="${i}">
                     <div class="history-header">
                         <span class="history-mode">${mode} ${diff}</span>
-                        <span class="history-score">${e.score} pts</span>
+                        <span class="history-score">${escapeHtml(e.score)} pts</span>
                     </div>
-                    <span class="history-meta">${e.correct}✓ ${e.wrong}✗ · ${acc}% · streak ×${e.streak}${elapsed} · ${date}</span>
+                    <span class="history-meta">${escapeHtml(`${e.correct}✓ ${e.wrong}✗ · ${acc}% · streak ×${e.streak}${elapsed} · ${date}`)}</span>
                     ${toggleBtn}
                     ${qaHtml}
                 </div>`;

@@ -1,6 +1,7 @@
 /**
  * game.js — Pure game logic. No DOM, no timers.
- * Supports classic, sprint, zen, and daily modes.
+ * Supports classic, sprint, zen, daily, and community modes.
+ * Questions may be supplied (server session / daily / community) or generated locally.
  */
 const Game = (() => {
 
@@ -20,8 +21,15 @@ const Game = (() => {
 
     let state = {};
 
+    // Modes that end after a fixed list of questions
+    const FIXED_LIST_MODES = ['daily', 'community'];
+
     function freshState(settings) {
         const predefined = settings.predefinedQuestions ?? null;
+        const totalQuestions =
+            settings.mode === 'sprint'                 ? SPRINT_QUESTIONS :
+            FIXED_LIST_MODES.includes(settings.mode)   ? predefined.length :
+            null;
         return {
             mode:        settings.mode,
             difficulty:  settings.difficulty  ?? 'medium',
@@ -35,10 +43,11 @@ const Game = (() => {
             timeLeft:    settings.mode === 'classic' ? settings.timeLimit : 0,
             totalTime:   settings.timeLimit ?? 60,
             questionIdx: 0,
-            totalQuestions: predefined ? predefined.length : (settings.mode === 'sprint' ? SPRINT_QUESTIONS : null),
+            totalQuestions,
             predefined,
             currentQ:          null,
-            answeredQuestions: [],
+            answeredQuestions: [],   // first 30, for the history screen
+            answers:           [],   // every answer given, sent to the server for scoring
             startTime:         Date.now(),
             active:            false,
         };
@@ -66,7 +75,7 @@ const Game = (() => {
 
     function nextQuestion() {
         if (state.predefined) {
-            return state.predefined[state.questionIdx] ?? state.predefined.at(-1);
+            return state.predefined[state.questionIdx] ?? generateQuestion(state.difficulty);
         }
         return generateQuestion(state.difficulty);
     }
@@ -83,9 +92,8 @@ const Game = (() => {
     // ── Game over check ───────────────────────────────────────────────────────
 
     function isGameOver() {
-        if (state.mode === 'sprint') return state.questionIdx >= SPRINT_QUESTIONS;
-        if (state.mode === 'daily') return state.questionIdx >= state.predefined.length;
-        return false;
+        if (state.totalQuestions === null) return false;
+        return state.questionIdx >= state.totalQuestions;
     }
 
     // ── Public API ────────────────────────────────────────────────────────────
@@ -111,7 +119,7 @@ const Game = (() => {
             multiplier   = Math.floor(state.streak / STREAK_BONUS_EVERY) + 1;
             pointsEarned = POINTS_BASE * multiplier;
             state.score += pointsEarned;
-            if (!state.predefined) leveledUp = updateScale();
+            if (!FIXED_LIST_MODES.includes(state.mode)) leveledUp = updateScale();
         } else {
             state.streak = 0;
             state.wrong++;
@@ -126,6 +134,7 @@ const Game = (() => {
             });
         }
 
+        state.answers.push(userAnswer);
         state.questionIdx++;
 
         if (isGameOver()) {

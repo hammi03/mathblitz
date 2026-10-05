@@ -31,18 +31,19 @@ const App = (() => {
     let zenTimer        = null;
     let zenElapsed      = 0;
     let countdownActive = false;
+    let currentXP       = 0;      // server-side total_xp of the signed-in user
+    let dailyDone       = false;  // signed-in user has started today's daily
+    let session         = null;   // { sessionId, questions } of the running server-scored game
 
     const lb = { mode: 'classic', difficulty: 'medium', timeLimit: 60 };
 
     // ── XP & Rank helpers ─────────────────────────────────────────────────────
 
-    function getTotalXP()    { return parseInt(localStorage.getItem('quantquiz_total_xp') || '0', 10); }
-    function addXP(pts)      { const n = getTotalXP() + pts; localStorage.setItem('quantquiz_total_xp', n); return n; }
-    function canSubmit(xp)   { return xp >= RANKS[2].min; }  // Silver II+
+    function canSubmit(xp)   { return xp >= RANKS[2].min; }  // Silver II+ (enforced server-side too)
 
     function updateRankBadge(xp) {
         const badge = document.getElementById('rank-badge');
-        if (!currentUser) { badge.classList.add('hidden'); return; }
+        if (!currentUser) { badge.className = 'rank-badge hidden'; return; }
         const rank = getRankForXP(xp);
         badge.textContent = `${rank.icon} ${rank.name}`;
         badge.className   = `rank-badge ${rank.cls}`;
@@ -86,7 +87,7 @@ const App = (() => {
         return better;
     }
     function formatBest(mode, diff, time) {
-        if (mode === 'daily') return Daily.hasCompletedToday() ? 'Done today ✓' : '—';
+        if (mode === 'daily') return dailyDone ? 'Done today ✓' : '—';
         const v = getBest(mode, diff, time);
         if (v === null) return '—';
         return mode === 'sprint' ? v + 's' : String(v);
@@ -95,17 +96,9 @@ const App = (() => {
     // ── Auth ──────────────────────────────────────────────────────────────────
 
     function initAuth() {
-        DB.onAuthChange(async (event, user) => {
-            currentUser = user;
-            if (user) {
-                const profile = await DB.getProfile(user.id);
-                currentUsername = profile?.username ?? user.email.split('@')[0];
-                updateStreakDisplay(profile?.current_streak ?? 0);
-            } else {
-                currentUsername = null;
-                updateStreakDisplay(0);
-            }
-            updateUserBar();
+        DB.onAuthChange((event, user) => {
+            if (event === 'TOKEN_REFRESHED') return;
+            loadUser(user);
         });
 
         document.querySelectorAll('.modal-tab').forEach(tab => {
@@ -140,15 +133,23 @@ const App = (() => {
             const errEl    = document.getElementById('signup-error');
             errEl.textContent = '';
             errEl.style.color = '';
-            if (!username || username.length < 3) {
-                errEl.textContent = 'Username must be at least 3 characters.';
+            if (!/^[A-Za-z0-9_]{3,20}$/.test(username)) {
+                errEl.textContent = 'Username: 3–20 characters, only letters, numbers and _.';
                 return;
             }
             try {
                 setLoading('signup-btn', true);
-                await DB.signUp(email, pass, username);
-                errEl.style.color = 'var(--green)';
-                errEl.textContent = 'Account created! You can now sign in.';
+                if (!(await DB.isUsernameAvailable(username))) {
+                    errEl.textContent = 'That username is already taken.';
+                    return;
+                }
+                const data = await DB.signUp(email, pass, username);
+                if (data.session) {
+                    closeAuthModal();
+                } else {
+                    errEl.style.color = 'var(--green)';
+                    errEl.textContent = 'Account created! Check your email to confirm, then sign in.';
+                }
             } catch (e) {
                 errEl.textContent = e.message;
             } finally {
@@ -163,6 +164,24 @@ const App = (() => {
         });
     }
 
+    async function loadUser(user) {
+        currentUser = user;
+        if (user) {
+            const profile = await DB.getProfile(user.id);
+            currentUsername = profile?.username ?? user.email.split('@')[0];
+            currentXP       = profile?.total_xp ?? 0;
+            updateStreakDisplay(profile?.current_streak ?? 0);
+            dailyDone = await DB.hasUserCompletedDaily(user.id, Daily.getTodayISO());
+        } else {
+            currentUsername = null;
+            currentXP       = 0;
+            dailyDone       = false;
+            updateStreakDisplay(0);
+        }
+        updateUserBar();
+        updateDailyButton();
+    }
+
     function openAuthModal() {
         if (!DB.isConfigured) { alert('Supabase not configured. Fill in js/config.js first.'); return; }
         document.getElementById('auth-modal').classList.add('active');
@@ -175,7 +194,7 @@ const App = (() => {
         document.getElementById('user-guest').classList.toggle('hidden', !!currentUser);
         document.getElementById('user-loggedin').classList.toggle('hidden', !currentUser);
         if (currentUser) document.getElementById('user-display-name').textContent = currentUsername;
-        updateRankBadge(getTotalXP());
+        updateRankBadge(currentXP);
         refreshBest();
     }
 
@@ -195,7 +214,8 @@ const App = (() => {
     function initMenu() {
         document.querySelectorAll('.mode-btn').forEach(btn => {
             btn.addEventListener('click', () => {
-                if (btn.id === 'daily-mode-btn'     && Daily.hasCompletedToday()) return;
+                if (btn.id === 'daily-mode-btn' && !currentUser && DB.isConfigured) { openAuthModal(); return; }
+                if (btn.id === 'daily-mode-btn' && dailyDone) return;
                 if (btn.id === 'community-mode-btn' && !DB.isConfigured) {
                     alert('Community mode needs Supabase configured in js/config.js.');
                     return;
@@ -237,14 +257,21 @@ const App = (() => {
     }
 
     function updateDailyButton() {
-        const done    = Daily.hasCompletedToday();
+        const done    = !!currentUser && dailyDone;
         const badge   = document.getElementById('daily-done-badge');
         const desc    = document.getElementById('daily-mode-desc');
         const btn     = document.getElementById('daily-mode-btn');
         badge.classList.toggle('hidden', !done);
         btn.style.opacity = done ? '0.5' : '1';
         btn.style.cursor  = done ? 'default' : 'pointer';
-        desc.textContent  = done ? 'Come back tomorrow!' : '20 questions · same for everyone';
+        desc.textContent  = done          ? 'Come back tomorrow!'
+                          : !currentUser  ? 'sign in to play · same for everyone'
+                          :                 '20 questions · same for everyone';
+
+        // Switch away from daily if it can't be played right now
+        if (settings.mode === 'daily' && (done || !currentUser)) {
+            document.querySelector('.mode-btn[data-mode="classic"]').click();
+        }
     }
 
     function updateTimeSectionVisibility() {
@@ -352,19 +379,47 @@ const App = (() => {
 
     async function startGame() {
         if (countdownActive) return;
-        if (settings.mode === 'daily' && Daily.hasCompletedToday()) return;
+        if (settings.mode === 'daily' && (!currentUser || dailyDone)) return;
 
         countdownActive = true;
         stopTimers();
+        session = null;
         UI.showScreen('game');
         await runCountdown();
 
+        // Questions are fetched after the countdown so the server clock starts with the game
         const gameSettings = { ...settings };
-        if (settings.mode === 'daily') {
-            gameSettings.predefinedQuestions = Daily.generateQuestions();
-        } else if (settings.mode === 'community') {
-            const qs = await DB.getCommunityQuestions(20);
-            gameSettings.predefinedQuestions = qs.length ? qs : Daily.generateQuestions();
+        try {
+            if (settings.mode === 'daily') {
+                session   = await DB.startDaily();
+                dailyDone = true;
+                updateDailyButton();
+                gameSettings.predefinedQuestions = session.questions;
+            } else if (settings.mode === 'community') {
+                const qs = await DB.getCommunityQuestions(20);
+                if (!qs.length) {
+                    alert('No community problems yet. Check back soon!');
+                    UI.showScreen('menu');
+                    return;
+                }
+                gameSettings.predefinedQuestions = qs;
+            } else if ((settings.mode === 'classic' || settings.mode === 'sprint') && currentUser) {
+                session = await DB.startGame(settings.mode, settings.difficulty, settings.timeLimit);
+                gameSettings.predefinedQuestions = session.questions;
+            }
+        } catch (e) {
+            if (settings.mode === 'daily') {
+                if (String(e.message).includes('daily_already_played')) {
+                    dailyDone = true;
+                    updateDailyButton();
+                    alert("You've already played today's daily challenge.");
+                } else {
+                    alert('Could not start the daily challenge. Check your connection and try again.');
+                }
+                UI.showScreen('menu');
+                return;
+            }
+            session = null;   // play locally; finishGame reports that the score wasn't saved
         }
 
         Sound.gameStart();
@@ -444,91 +499,75 @@ const App = (() => {
 
     // ── Game end ──────────────────────────────────────────────────────────────
 
+    const REJECT_MESSAGES = {
+        implausible_speed:  'Score not saved: answers came in faster than humanly possible.',
+        session_expired:    'Score not saved: the game took too long to submit.',
+        finished_too_early: 'Score not saved: the game ended too early.',
+        incomplete:         'Score not saved: not all questions were answered.',
+        too_many_answers:   'Score not saved: invalid game data.',
+    };
+
+    function setSaveStatus(text, color = 'muted') {
+        const el = document.getElementById('save-status');
+        el.textContent = text;
+        el.style.color = `var(--${color})`;
+    }
+
     async function finishGame(state) {
-        const elapsed = Game.elapsedSeconds();
+        const elapsed   = Game.elapsedSeconds();
+        const submitBtn = document.getElementById('submit-problem-btn');
 
         // Save to local history (all modes)
         saveGameHistory(state, elapsed);
 
-        // XP tracking (all modes except zen)
-        if (state.mode !== 'zen') {
-            const oldXP  = getTotalXP();
-            const newXP  = addXP(state.score);
-            const oldRank = getRankForXP(oldXP);
-            const newRank = getRankForXP(newXP);
-            if (newRank.name !== oldRank.name) {
-                setTimeout(() => UI.showRankUp(oldRank, newRank), 600);
-            }
-            updateRankBadge(newXP);
-            // Show submit button for Silver+ users
-            document.getElementById('submit-problem-btn').classList.toggle('hidden', !canSubmit(newXP));
-        } else {
-            document.getElementById('submit-problem-btn').classList.add('hidden');
+        let isNewBest = false;
+        if (state.mode === 'classic' || state.mode === 'sprint' || state.mode === 'zen') {
+            const bestValue = state.mode === 'sprint' ? parseFloat(elapsed) : state.score;
+            isNewBest = setBest(state.mode, state.difficulty, settings.timeLimit, bestValue);
+            refreshBest();
         }
-
-        // Daily mode — special handling
-        if (state.mode === 'daily') {
-            Daily.markCompletedToday();
-            updateDailyButton();
-            const saveEl = document.getElementById('save-status');
-            UI.showResults(state, elapsed, false);
-
-            if (currentUser) {
-                saveEl.textContent = 'Saving daily score...';
-                saveEl.style.color = 'var(--muted)';
-                try {
-                    await DB.saveDailyScore(currentUser.id, state, elapsed);
-                    saveEl.textContent = 'Daily score saved! ✓';
-                    saveEl.style.color = 'var(--green)';
-                } catch {
-                    saveEl.textContent = 'Could not save score.';
-                    saveEl.style.color = 'var(--red)';
-                }
-            } else if (DB.isConfigured) {
-                saveEl.textContent = 'Sign in to appear on the daily leaderboard';
-                saveEl.style.color = 'var(--muted)';
-            }
-
-            if (currentUser) {
-                const streak = await DB.updateStreak(currentUser.id);
-                if (streak) updateStreakDisplay(streak.current);
-            }
-            return;
-        }
-
-        // Community mode — show results, no leaderboard save
-        if (state.mode === 'community') {
-            UI.showResults(state, elapsed, false);
-            document.getElementById('save-status').textContent = '';
-            return;
-        }
-
-        // Regular modes
-        const bestValue = state.mode === 'sprint' ? parseFloat(elapsed) : state.score;
-        const isNewBest = setBest(state.mode, state.difficulty, settings.timeLimit, bestValue);
-        refreshBest();
         UI.showResults(state, elapsed, isNewBest);
+        submitBtn.classList.toggle('hidden', !(currentUser && canSubmit(currentXP)));
+        setSaveStatus('');
 
-        const saveEl = document.getElementById('save-status');
-        if (currentUser) {
-            saveEl.textContent = 'Saving score...';
-            saveEl.style.color = 'var(--muted)';
-            try {
-                await DB.saveScore(currentUser.id, state, elapsed, settings);
-                await DB.updateStreak(currentUser.id);
-                const profile = await DB.getProfile(currentUser.id);
-                updateStreakDisplay(profile?.current_streak ?? 0);
-                saveEl.textContent = 'Score saved to leaderboard ✓';
-                saveEl.style.color = 'var(--green)';
-            } catch {
-                saveEl.textContent = 'Could not save score.';
-                saveEl.style.color = 'var(--red)';
+        if (!session) {
+            // Zen and community are practice modes: no leaderboard, no XP
+            if (state.mode === 'zen' || state.mode === 'community') return;
+            if (currentUser)          setSaveStatus('Offline: score not saved.', 'red');
+            else if (DB.isConfigured) setSaveStatus('Sign in to compete on the leaderboard');
+            return;
+        }
+
+        const { sessionId } = session;
+        session = null;
+        setSaveStatus(state.mode === 'daily' ? 'Saving daily score...' : 'Saving score...');
+
+        try {
+            const res = await DB.submitGame(sessionId, state.answers);
+            if (!res.ok) {
+                setSaveStatus(REJECT_MESSAGES[res.reason] ?? 'Score not saved.', 'red');
+                return;
             }
-        } else if (DB.isConfigured) {
-            saveEl.textContent = 'Sign in to compete on the leaderboard';
-            saveEl.style.color = 'var(--muted)';
-        } else {
-            saveEl.textContent = '';
+
+            const oldRank = getRankForXP(res.old_xp);
+            const newRank = getRankForXP(res.total_xp);
+            currentXP = res.total_xp;
+            updateRankBadge(currentXP);
+            if (newRank.name !== oldRank.name) setTimeout(() => UI.showRankUp(oldRank, newRank), 600);
+            updateStreakDisplay(res.current_streak);
+            submitBtn.classList.toggle('hidden', !canSubmit(currentXP));
+
+            if (state.mode === 'sprint') {
+                // Show the server-measured time, which is what the leaderboard uses
+                document.getElementById('results-title').textContent = res.elapsed + 's';
+                document.getElementById('res-time').textContent      = res.elapsed + 's';
+            }
+
+            if (state.mode === 'daily')                           setSaveStatus('Daily score saved! ✓', 'green');
+            else if (state.mode === 'sprint' && res.correct < 10) setSaveStatus('Saved ✓ · Sprint leaderboard needs 10/10 correct', 'green');
+            else                                                  setSaveStatus('Score saved to leaderboard ✓', 'green');
+        } catch {
+            setSaveStatus('Could not save score.', 'red');
         }
     }
 
@@ -614,9 +653,7 @@ const App = (() => {
             }
 
             list.innerHTML = rows.map((row, i) => {
-                const username  = lb.mode === 'global'
-                    ? (row.username ?? 'anonymous')
-                    : (row.profiles?.username ?? 'anonymous');
+                const username  = row.username ?? 'anonymous';
                 const pos       = i + 1;
                 const isMe      = currentUsername && username === currentUsername;
                 const medal     = pos === 1 ? '🥇' : pos === 2 ? '🥈' : pos === 3 ? '🥉' : `#${pos}`;
@@ -642,7 +679,7 @@ const App = (() => {
                     <div class="lb-row ${isMe ? 'lb-row-me' : ''}">
                         <span class="lb-rank">${medal}</span>
                         <span class="lb-name">
-                            <span class="lb-name-link" data-username="${username}">${username}${isMe ? ' (you)' : ''}</span>${rankBadge}
+                            <span class="lb-name-link" data-username="${escapeHtml(username)}">${escapeHtml(username)}${isMe ? ' (you)' : ''}</span>${rankBadge}
                         </span>
                         <div class="lb-scores">
                             <span class="lb-primary">${primary}</span>
@@ -655,7 +692,7 @@ const App = (() => {
                 el.addEventListener('click', () => showProfile(el.dataset.username));
             });
         } catch (e) {
-            list.innerHTML = `<p class="lb-empty" style="color:var(--red)">Failed to load: ${e.message}</p>`;
+            list.innerHTML = `<p class="lb-empty" style="color:var(--red)">Failed to load: ${escapeHtml(e.message)}</p>`;
         }
     }
 
@@ -702,7 +739,13 @@ const App = (() => {
         // Socket event handlers
         DuelClient.on('connect_error', () => {
             UI.showScreen('menu');
-            alert('Could not connect to the duel server.\n\nMake sure it\'s running:\n\n  cd C:\\Users\\hammi\\mental-math\\server\n  node server.js');
+            alert('Could not connect to the duel server. Please try again in a moment.');
+        });
+
+        DuelClient.on('duel_error', ({ message }) => {
+            DuelClient.disconnect();
+            UI.showScreen('menu');
+            alert(message);
         });
 
         DuelClient.on('searching', () => {
@@ -841,14 +884,15 @@ const App = (() => {
         el.addEventListener('animationend', () => el.remove());
     }
 
-    function startDuelSearch() {
+    async function startDuelSearch() {
         if (!currentUsername) { openAuthModal(); return; }
         DuelClient.disconnect(); // clean up any previous connection
         showDuelPhase('searching');
         document.getElementById('duel-pre-search').classList.remove('hidden');
         document.getElementById('duel-pre-countdown').classList.add('hidden');
         UI.showScreen('duel');
-        DuelClient.findMatch(currentUsername);
+        // The server looks up the username from this token, so it can't be spoofed
+        DuelClient.findMatch(await DB.getAccessToken());
     }
 
     // ── History ───────────────────────────────────────────────────────────────
@@ -949,7 +993,7 @@ const App = (() => {
             msgEl.style.color = 'var(--muted)';
             msgEl.textContent = 'Submitting...';
             try {
-                await DB.submitCommunityQuestion(currentUser.id, a, b);
+                await DB.submitCommunityQuestion(a, b);
                 msgEl.style.color = 'var(--green)';
                 msgEl.textContent = 'Submitted! It will appear after review ✓';
                 setTimeout(() => modal.classList.remove('active'), 1800);
@@ -964,6 +1008,9 @@ const App = (() => {
 
     function initNav() {
         document.getElementById('quit-btn').addEventListener('click', () => {
+            if (session && settings.mode === 'daily' &&
+                !confirm("Quit the daily challenge? Today's attempt will be used up.")) return;
+            session = null;
             stopTimers();
             UI.showScreen('menu');
             refreshBest();
@@ -1002,18 +1049,11 @@ const App = (() => {
         initShare();
         initProfileModal();
         updateTimeSectionVisibility();
-        updateRankBadge(getTotalXP());
+        updateRankBadge(currentXP);
+        updateDailyButton();
         refreshBest();
         UI.showScreen('menu');
-
-        const user = await DB.getUser();
-        if (user) {
-            currentUser = user;
-            const profile = await DB.getProfile(user.id);
-            currentUsername = profile?.username ?? user.email.split('@')[0];
-            updateStreakDisplay(profile?.current_streak ?? 0);
-            updateUserBar();
-        }
+        // The signed-in user (if any) arrives via onAuthChange → loadUser
     }
 
     return { init };
