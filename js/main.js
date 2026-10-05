@@ -1549,6 +1549,7 @@ const App = (() => {
         screen.classList.remove('paused');
         if (choice === 'secondary') {
             session = null;
+            Game.stop();
             stopTimers();
             UI.showScreen('menu');
             refreshBest();

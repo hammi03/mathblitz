@@ -124,6 +124,9 @@ const Game = (() => {
         state.pausedAt = null;
     }
 
+    // Leaving a round early: it simply ends, nothing is scored
+    function stop() { state.active = false; state.pausedAt = null; }
+
     function isRunning() { return !!state.active; }
     function isPaused()  { return state.pausedAt !== null; }
 
@@ -187,5 +190,5 @@ const Game = (() => {
     function getCurrentQuestion() { return state.currentQ; }
     function snapshot()           { return { ...state }; }
 
-    return { start, submitAnswer, tick, pause, resume, isRunning, isPaused, elapsedSeconds, getCurrentQuestion, snapshot };
+    return { start, submitAnswer, tick, pause, resume, stop, isRunning, isPaused, elapsedSeconds, getCurrentQuestion, snapshot };
 })();
