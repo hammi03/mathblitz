@@ -716,20 +716,58 @@ const App = (() => {
     // ── Duel ─────────────────────────────────────────────────────────────────
 
     let _duelPlayerIdx = 0;
+    let _duelDuration  = 60;
+    let _duelVsBot     = false;
+    let _duelAwaiting  = false;   // answer sent, waiting for the server's verdict
+    let _duelLastTick  = 0;
+    let _duelWatchdog  = null;
 
     function showDuelPhase(phase) {
         document.getElementById('duel-searching').classList.toggle('hidden', phase !== 'searching');
         document.getElementById('duel-active').classList.toggle('hidden',    phase !== 'active');
         document.getElementById('duel-result').classList.toggle('hidden',    phase !== 'result');
+        if (phase !== 'active') stopDuelWatchdog();
+    }
+
+    function duelScreenActive() {
+        return document.getElementById('screen-duel').classList.contains('active');
+    }
+
+    function currentDuelPhase() {
+        return ['searching', 'active', 'result'].find(p =>
+            !document.getElementById(`duel-${p}`).classList.contains('hidden'));
+    }
+
+    function showDuelProblem(icon, title) {
+        showDuelPhase('result');
+        document.getElementById('duel-result-icon').textContent  = icon;
+        document.getElementById('duel-result-title').textContent = title;
+    }
+
+    // No timer tick for a while = the connection died without a disconnect event
+    function startDuelWatchdog() {
+        stopDuelWatchdog();
+        _duelLastTick = Date.now();
+        _duelWatchdog = setInterval(() => {
+            if (Date.now() - _duelLastTick < 6000) return;
+            DuelClient.disconnect();
+            showDuelProblem('⚠️', 'Connection lost');
+        }, 1000);
+    }
+
+    function stopDuelWatchdog() {
+        if (_duelWatchdog) { clearInterval(_duelWatchdog); _duelWatchdog = null; }
     }
 
     function initDuel() {
         document.getElementById('duel-btn').addEventListener('click', startDuelSearch);
         document.getElementById('cancel-duel-btn').addEventListener('click', () => {
             DuelClient.cancelMatch();
+            DuelClient.disconnect();   // also leaves a match that formed at the same moment
             UI.showScreen('menu');
         });
         document.getElementById('forfeit-btn').addEventListener('click', () => {
+            if (!confirm('Give up this duel?')) return;
             DuelClient.forfeit();
             UI.showScreen('menu');
         });
@@ -738,14 +776,17 @@ const App = (() => {
             DuelClient.disconnect();
             UI.showScreen('menu');
         });
+        document.getElementById('challenge-btn').addEventListener('click', createChallenge);
 
         // Duel answer input
         const duelInput  = document.getElementById('duel-input');
         const duelSubmit = document.getElementById('duel-submit-btn');
 
         function handleDuelSubmit() {
+            if (_duelAwaiting) return;   // a double Enter would be graded against the next question
             const val = parseInt(duelInput.value, 10);
             if (isNaN(val)) return;
+            _duelAwaiting = true;
             DuelClient.submitAnswer(val);
             duelInput.value = '';
         }
@@ -755,6 +796,7 @@ const App = (() => {
 
         // Socket event handlers
         DuelClient.on('connect_error', () => {
+            DuelClient.disconnect();
             UI.showScreen('menu');
             alert('Could not connect to the duel server. Please try again in a moment.');
         });
@@ -766,18 +808,39 @@ const App = (() => {
         });
 
         DuelClient.on('searching', () => {
+            setSearchText('Finding Opponent', 'Waiting for another player...');
             document.getElementById('duel-pre-search').classList.remove('hidden');
             document.getElementById('duel-pre-countdown').classList.add('hidden');
         });
 
-        DuelClient.on('matched', ({ opponent, playerIdx, firstQuestion }) => {
-            track('duel_matched');
+        DuelClient.on('challenge_created', async ({ code }) => {
+            const url = new URL(location.origin + location.pathname);
+            url.searchParams.set('duel', code);
+            url.searchParams.set('utm_source', 'share');
+            url.searchParams.set('utm_campaign', 'duel');
+            _challengeLink = url.toString();
+
+            setSearchText('Waiting for your friend', 'Send them the link. It works without an account and stays valid for 10 minutes.');
+            document.getElementById('challenge-btn').textContent = '🔗 Share link again';
+            await shareChallengeLink();
+        });
+
+        DuelClient.on('matched', ({ you, opponent, opponentIsBot, playerIdx, firstQuestion, duration }) => {
+            track('duel_matched', { bot: !!opponentIsBot });
             _duelPlayerIdx = playerIdx;
-            document.getElementById('duel-my-name').textContent  = currentUsername || 'You';
-            document.getElementById('duel-opp-name').textContent = opponent;
-            document.getElementById('dr-my-name').textContent    = currentUsername || 'You';
-            document.getElementById('dr-opp-name').textContent   = opponent;
-            document.getElementById('duel-opp-found').textContent = opponent;
+            _duelDuration  = duration || 60;
+            _duelVsBot     = !!opponentIsBot;
+
+            const myName  = you || currentUsername || 'You';
+            const oppName = opponentIsBot ? `🤖 ${opponent}` : opponent;
+            document.getElementById('duel-my-name').textContent  = myName;
+            document.getElementById('duel-opp-name').textContent = oppName;
+            document.getElementById('dr-my-name').textContent    = myName;
+            document.getElementById('dr-opp-name').textContent   = oppName;
+            document.getElementById('duel-opp-found').textContent = oppName;
+            document.getElementById('duel-found-label').textContent = opponentIsBot
+                ? 'Nobody online right now. Warm up against a bot!'
+                : 'Opponent found!';
             document.getElementById('duel-question').textContent  = firstQuestion.display;
 
             // Switch to countdown sub-phase
@@ -795,10 +858,12 @@ const App = (() => {
             // Reset HUD
             ['duel-my-score','duel-opp-score'].forEach(id => document.getElementById(id).textContent = '0');
             ['duel-my-correct','duel-opp-correct'].forEach(id => document.getElementById(id).textContent = '0 ✓');
-            document.getElementById('duel-timer').textContent = '60';
+            document.getElementById('duel-timer').textContent = _duelDuration;
             document.getElementById('duel-timer').style.color = '';
             document.getElementById('duel-progress').style.width = '100%';
+            _duelAwaiting = false;
             showDuelPhase('active');
+            startDuelWatchdog();
             document.getElementById('duel-input').focus();
         });
 
@@ -823,10 +888,10 @@ const App = (() => {
 
             setTimeout(() => {
                 if (nextQuestion) document.getElementById('duel-question').textContent = nextQuestion.display;
-                input.value     = '';
                 input.className = '';
-                fb.textContent  = '\u00A0';
+                fb.textContent  = ' ';
                 fb.className    = 'feedback';
+                _duelAwaiting   = false;
                 input.focus();
             }, 160);
         });
@@ -841,16 +906,18 @@ const App = (() => {
         });
 
         DuelClient.on('timer_tick', ({ timeLeft }) => {
+            _duelLastTick = Date.now();
             const el = document.getElementById('duel-timer');
             el.textContent = timeLeft;
             el.style.color = timeLeft <= 10 ? 'var(--red)' : timeLeft <= 20 ? 'var(--yellow)' : '';
-            document.getElementById('duel-progress').style.width = `${(timeLeft / 60) * 100}%`;
+            document.getElementById('duel-progress').style.width = `${(timeLeft / _duelDuration) * 100}%`;
         });
 
         DuelClient.on('duel_end', ({ winner, reason, players }) => {
             track('duel_finished', {
                 result: winner === -1 ? 'draw' : winner === _duelPlayerIdx ? 'win' : 'loss',
                 reason,
+                bot:    _duelVsBot,
             });
             const me  = players[_duelPlayerIdx];
             const opp = players[1 - _duelPlayerIdx];
@@ -862,27 +929,31 @@ const App = (() => {
 
             const isTie  = winner === -1;
             const isWin  = winner === _duelPlayerIdx;
-            const isDisc = reason === 'disconnect' || reason === 'forfeit';
+            const oppLeft = isWin && (reason === 'disconnect' || reason === 'forfeit');
 
             document.getElementById('duel-result-icon').textContent  = isTie ? '🤝' : isWin ? '🏆' : '💀';
             document.getElementById('duel-result-title').textContent =
-                isTie ? 'Draw!' : isWin ? 'Victory!' :
-                (isDisc ? 'Opponent left' : 'Defeat');
+                isTie ? 'Draw!' : oppLeft ? 'Opponent left. You win!' : isWin ? 'Victory!' : 'Defeat';
 
             showDuelPhase('result');
+            DuelClient.disconnect();
         });
 
-        DuelClient.on('disconnect', () => {
-            // Only act if we were mid-duel
-            const active = !document.getElementById('duel-active').classList.contains('hidden');
-            if (active) {
-                showDuelPhase('result');
-                document.getElementById('duel-result-icon').textContent  = '⚠️';
-                document.getElementById('duel-result-title').textContent = 'Disconnected';
+        DuelClient.on('disconnect', reason => {
+            if (reason === 'io client disconnect' || !duelScreenActive()) return;   // we left on purpose
+            const phase = currentDuelPhase();
+            if (phase === 'active') {
+                showDuelProblem('⚠️', 'Disconnected');
+            } else if (phase === 'searching') {
+                UI.showScreen('menu');
+                alert('Lost connection to the duel server. Please try again.');
             }
         });
 
-        DuelClient.on('match_cancelled', () => UI.showScreen('menu'));
+        DuelClient.on('match_cancelled', () => {
+            DuelClient.disconnect();
+            if (duelScreenActive()) UI.showScreen('menu');
+        });
 
         DuelClient.on('reaction', ({ emoji }) => {
             spawnReaction(emoji);
@@ -893,6 +964,11 @@ const App = (() => {
                 DuelClient.sendReaction(btn.dataset.emoji);
             });
         });
+    }
+
+    function setSearchText(title, sub) {
+        document.getElementById('duel-search-title').textContent = title;
+        document.getElementById('duel-search-sub').textContent   = sub;
     }
 
     function spawnReaction(emoji) {
@@ -906,16 +982,74 @@ const App = (() => {
         el.addEventListener('animationend', () => el.remove());
     }
 
-    async function startDuelSearch() {
-        if (!currentUsername) { openAuthModal(); return; }
+    function enterDuelSearch(title, sub) {
         DuelClient.disconnect(); // clean up any previous connection
+        _challengeLink = null;
         showDuelPhase('searching');
+        setSearchText(title, sub);
+        document.getElementById('challenge-btn').textContent = '🔗 Challenge a friend';
         document.getElementById('duel-pre-search').classList.remove('hidden');
         document.getElementById('duel-pre-countdown').classList.add('hidden');
         UI.showScreen('duel');
-        // The server looks up the username from this token, so it can't be spoofed
+    }
+
+    // Guests can duel too; signed-in players are identified by their token
+    async function startDuelSearch() {
+        enterDuelSearch('Finding Opponent', 'Waiting for another player...');
         track('duel_search_started');
-        DuelClient.findMatch(await DB.getAccessToken());
+        DuelClient.findMatch(await DB.getAccessToken(), settings.difficulty);
+    }
+
+    // ── Challenge links ───────────────────────────────────────────────────────
+
+    let _challengeLink = null;
+
+    async function createChallenge() {
+        if (_challengeLink) { await shareChallengeLink(); return; }
+        DuelClient.createChallenge(await DB.getAccessToken(), settings.difficulty);
+    }
+
+    async function shareChallengeLink() {
+        if (!_challengeLink) return;
+        const result = await shareOrCopy(`Can you beat me at mental math? ⚔️ Duel me on QuantQuiz: ${_challengeLink}`);
+        if (result === 'copied') {
+            document.getElementById('duel-search-sub').textContent =
+                'Link copied! Send it to a friend. It works without an account and stays valid for 10 minutes.';
+        }
+    }
+
+    // Opened via ?duel=CODE: join the friend's duel right away
+    async function joinChallengeFromUrl() {
+        const params = new URLSearchParams(location.search);
+        const code   = params.get('duel');
+        if (!code) return;
+
+        params.delete('duel');
+        const rest = params.toString();
+        history.replaceState(null, '', location.pathname + (rest ? `?${rest}` : ''));
+
+        enterDuelSearch('Joining duel', 'Connecting to your friend...');
+        track('duel_search_started', { via: 'challenge' });
+        DuelClient.joinChallenge(await DB.getAccessToken(), code.slice(0, 12));
+    }
+
+    // Web Share API with clipboard fallback → 'shared' | 'copied' | 'failed'
+    async function shareOrCopy(text) {
+        if (navigator.share) {
+            try {
+                await navigator.share({ text });
+                return 'shared';
+            } catch (e) {
+                if (e?.name === 'AbortError') return 'failed';   // user closed the share sheet
+            }
+        }
+        try {
+            await navigator.clipboard.writeText(text);
+            return 'copied';
+        } catch {
+            prompt('Copy this:', text);
+            return 'failed';
+        }
     }
 
     // ── History ───────────────────────────────────────────────────────────────
@@ -1078,6 +1212,7 @@ const App = (() => {
         refreshBest();
         UI.showScreen('menu');
         // The signed-in user (if any) arrives via onAuthChange → loadUser
+        joinChallengeFromUrl();
     }
 
     return { init };

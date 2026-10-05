@@ -638,7 +638,9 @@ kbd {
 /* Searching phase */
 .duel-sword       { font-size: 3.5rem; }
 .duel-search-title { font-size: 1.5rem; font-weight: 900; }
-.duel-search-sub  { color: var(--muted); font-size: 0.85rem; }
+.duel-search-sub  { color: var(--muted); font-size: 0.85rem; text-align: center; max-width: 280px; }
+#duel-pre-search  { display: flex; flex-direction: column; align-items: center; gap: 1rem; }
+.btn-challenge    { min-height: 44px; padding: 0.6rem 1.2rem; font-size: 0.9rem; }
 
 .duel-dots { display: flex; gap: 0.4rem; }
 .duel-dots span {

@@ -20,20 +20,20 @@ const DuelClient = (() => {
     function connect() {
         if (socket?.connected) return;
 
-        socket = io(SERVER, {
-            transports: ['websocket'],
-            reconnection: false,
-        });
+        // Default transports: starts with HTTP long-polling and upgrades to
+        // WebSocket, so it also works on networks that block WebSockets.
+        socket = io(SERVER, { reconnection: false });
 
         const events = [
             'searching', 'matched', 'countdown', 'duel_start',
             'answer_result', 'opponent_update', 'timer_tick',
             'duel_end', 'match_cancelled', 'reaction', 'duel_error',
+            'challenge_created',
         ];
         events.forEach(e => socket.on(e, data => _dispatch(e, data)));
 
-        socket.on('connect_error', err => _dispatch('connect_error', err));
-        socket.on('disconnect',    ()  => _dispatch('disconnect'));
+        socket.on('connect_error', err    => _dispatch('connect_error', err));
+        socket.on('disconnect',    reason => _dispatch('disconnect', reason));
     }
 
     function disconnect() {
@@ -42,10 +42,20 @@ const DuelClient = (() => {
         // handlers are kept — they were registered once during init
     }
 
-    // token = Supabase access token; the server derives the username from it
-    function findMatch(token) {
+    // token = Supabase access token (null for guests); the server derives the name from it
+    function findMatch(token, difficulty) {
         connect();
-        socket.emit('find_match', { token });
+        socket.emit('find_match', { token, difficulty });
+    }
+
+    function createChallenge(token, difficulty) {
+        connect();
+        socket.emit('create_challenge', { token, difficulty });
+    }
+
+    function joinChallenge(token, code) {
+        connect();
+        socket.emit('join_challenge', { token, code });
     }
 
     function cancelMatch()         { socket?.emit('cancel_match'); }
@@ -53,5 +63,8 @@ const DuelClient = (() => {
     function forfeit()             { socket?.emit('forfeit'); disconnect(); }
     function sendReaction(emoji)   { socket?.emit('send_reaction', { emoji }); }
 
-    return { on, connect, disconnect, findMatch, cancelMatch, submitAnswer, forfeit, sendReaction };
+    return {
+        on, connect, disconnect, findMatch, createChallenge, joinChallenge,
+        cancelMatch, submitAnswer, forfeit, sendReaction,
+    };
 })();

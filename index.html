@@ -358,13 +358,14 @@
         <div id="duel-searching" class="duel-phase">
             <div id="duel-pre-search">
                 <div class="duel-sword">⚔️</div>
-                <h2 class="duel-search-title">Finding Opponent</h2>
+                <h2 class="duel-search-title" id="duel-search-title">Finding Opponent</h2>
                 <div class="duel-dots"><span></span><span></span><span></span></div>
-                <p class="duel-search-sub">Waiting for another player...</p>
+                <p class="duel-search-sub" id="duel-search-sub">Waiting for another player...</p>
+                <button id="challenge-btn" class="btn-secondary btn-challenge">🔗 Challenge a friend</button>
                 <button id="cancel-duel-btn" class="btn-ghost">Cancel</button>
             </div>
             <div id="duel-pre-countdown" class="hidden">
-                <p class="duel-found-label">Opponent found!</p>
+                <p class="duel-found-label" id="duel-found-label">Opponent found!</p>
                 <p class="duel-opp-found" id="duel-opp-found">—</p>
                 <div class="duel-countdown-big" id="duel-countdown-num">3</div>
             </div>
