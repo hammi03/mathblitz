@@ -2,7 +2,8 @@
  * duel-client.js — Frontend Socket.io wrapper for duels.
  * Keeps all socket logic out of main.js.
  *
- * With DUELS_ONLINE = false (config.js) it never touches the duel server.
+ * With DUELS_ONLINE = false (config.js) it never touches the duel server;
+ * duels run against BotDuel in the browser, which emits the same events.
  */
 const DuelClient = (() => {
 
@@ -43,6 +44,7 @@ const DuelClient = (() => {
     }
 
     function disconnect() {
+        BotDuel.stop();
         socket?.disconnect();
         socket = null;
         // handlers are kept — they were registered once during init
@@ -50,7 +52,7 @@ const DuelClient = (() => {
 
     // token = Supabase access token (null for guests); the server derives the name from it
     function findMatch(token, difficulty) {
-        if (!ONLINE) { _dispatch('duel_error', { message: 'Online duels are coming soon!' }); return; }
+        if (!ONLINE) { BotDuel.start(difficulty, _dispatch); return; }
         connect();
         socket.emit('find_match', { token, difficulty });
     }
@@ -67,9 +69,23 @@ const DuelClient = (() => {
         socket.emit('join_challenge', { token, code });
     }
 
-    function cancelMatch()         { socket?.emit('cancel_match'); }
-    function submitAnswer(answer)  { socket?.emit('submit_answer', { answer }); }
-    function forfeit()             { socket?.emit('forfeit'); disconnect(); }
+    function cancelMatch() {
+        BotDuel.stop();
+        socket?.emit('cancel_match');
+    }
+
+    function submitAnswer(answer) {
+        if (!ONLINE) { BotDuel.submitAnswer(answer); return; }
+        socket?.emit('submit_answer', { answer });
+    }
+
+    function forfeit() {
+        if (!ONLINE) { BotDuel.forfeit(); return; }
+        socket?.emit('forfeit');
+        disconnect();
+    }
+
+    // The bot doesn't react to emojis
     function sendReaction(emoji) { socket?.emit('send_reaction', { emoji }); }
 
     return {

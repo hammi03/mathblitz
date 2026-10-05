@@ -832,7 +832,7 @@ const App = (() => {
             await shareChallengeLink({ fromTap: false });
         });
 
-        DuelClient.on('matched', ({ you, opponent, opponentIsBot, playerIdx, firstQuestion, duration }) => {
+        DuelClient.on('matched', ({ you, opponent, opponentIsBot, offline, playerIdx, firstQuestion, duration }) => {
             track('duel_matched', { bot: !!opponentIsBot });
             _duelPlayerIdx = playerIdx;
             _duelDuration  = duration || 60;
@@ -845,9 +845,10 @@ const App = (() => {
             document.getElementById('dr-my-name').textContent    = myName;
             document.getElementById('dr-opp-name').textContent   = oppName;
             document.getElementById('duel-opp-found').textContent = oppName;
-            document.getElementById('duel-found-label').textContent = opponentIsBot
-                ? 'Nobody online right now. Warm up against a bot!'
-                : 'Opponent found!';
+            document.getElementById('duel-found-label').textContent =
+                offline       ? 'Online duels are coming soon. Warm up against our bot!' :
+                opponentIsBot ? 'Nobody online right now. Warm up against a bot!' :
+                                'Opponent found!';
             document.getElementById('duel-question').textContent  = firstQuestion.display;
 
             // Switch to countdown sub-phase
