@@ -3,7 +3,7 @@
  * Handles push notifications. Requires HTTPS to activate.
  */
 
-const CACHE = 'quantquiz-v8';
+const CACHE = 'quantquiz-v9';
 
 // Cache core files on install
 self.addEventListener('install', event => {
@@ -15,7 +15,7 @@ self.addEventListener('install', event => {
             '/fonts/big-shoulders-display.woff2', '/fonts/atkinson-hyperlegible-next.woff2',
             '/js/config.js', '/js/analytics.js', '/js/db.js', '/js/sound.js',
             '/js/game.js', '/js/daily.js', '/js/bot-duel.js', '/js/duel-client.js',
-            '/js/ui.js', '/js/main.js',
+            '/js/ui.js', '/js/share-card.js', '/js/main.js',
         ]).catch(() => {}))
     );
 });

@@ -586,6 +586,7 @@ const App = (() => {
         Sound.gameEnd();
         UI.showResults(state, elapsed, isNewBest);
         updateResultButtons(state.mode);
+        prepareShareCard();
 
         const answered = state.correct + state.wrong;
         track('game_end', {
@@ -630,6 +631,8 @@ const App = (() => {
                 document.getElementById('res-time').textContent      = res.elapsed + 's';
                 lastResult.elapsed = String(res.elapsed);
             }
+
+            prepareShareCard();
 
             if (state.mode === 'daily')                           setSaveStatus('Daily score saved! ✓', 'green');
             else if (state.mode === 'sprint' && res.correct < 10) setSaveStatus('Saved ✓ · Sprint leaderboard needs 10/10 correct', 'green');
@@ -1174,12 +1177,67 @@ const App = (() => {
         return `${line}\nBeat me: ${shareLink(state.mode)}`;
     }
 
+    // Facts for the image card (js/share-card.js); same numbers as the text
+    function buildCardData(state, elapsed) {
+        const answered = state.correct + state.wrong;
+        const acc      = answered ? Math.round((state.correct / answered) * 100) : 0;
+        const secs     = parseFloat(elapsed);
+        const diff     = (DIFF_NAMES[state.difficulty] ?? '').toLowerCase();
+        const host     = new URL(shareLink(state.mode)).host;
+        const streak   = currentUser && currentStreak > 0 ? [['Day streak', String(currentStreak)]] : [];
+        const grid     = state.answeredQuestions.map(q => q.correct);
+
+        switch (state.mode) {
+            case 'daily':
+                return { title: 'Daily challenge', date: Daily.getDateLabel(),
+                         headline: `${state.correct}/${state.totalQuestions}`, headlineLabel: 'correct',
+                         stats: [['Time', `${Math.round(secs)}s`], ['Accuracy', `${acc}%`], ...streak], grid, host };
+            case 'sprint':
+                return { title: `Sprint, ${diff}`, date: '10 questions',
+                         headline: `${secs.toFixed(1)}s`, headlineLabel: `${state.correct} of 10 correct`,
+                         stats: [['Accuracy', `${acc}%`], ['Best streak', String(state.bestStreak)], ...streak], grid, host };
+            case 'classic':
+                return { title: `Classic, ${diff}`, date: `${state.totalTime} seconds`,
+                         headline: String(state.score), headlineLabel: 'points',
+                         stats: [['Correct', String(state.correct)], ['Accuracy', `${acc}%`], ...streak], grid: null, host };
+            default:
+                return { title: state.mode === 'zen' ? 'Zen' : 'Community problems', date: null,
+                         headline: String(state.correct), headlineLabel: 'correct answers',
+                         stats: [['Accuracy', `${acc}%`], ['Best streak', String(state.bestStreak)]], grid: null, host };
+        }
+    }
+
+    // Rendered ahead of the tap: iOS only opens the share sheet right after a tap
+    function prepareShareCard() {
+        const result = lastResult;
+        if (!result) return;
+        result.cardFile = null;
+        ShareCard.render(buildCardData(result.state, result.elapsed))
+            .then(blob => {
+                if (blob && lastResult === result) {
+                    result.cardFile = new File([blob], 'quantquiz-result.png', { type: 'image/png' });
+                }
+            })
+            .catch(() => { /* text sharing still works */ });
+    }
+
     function initShare() {
         const btn = document.getElementById('share-btn');
         btn.addEventListener('click', async () => {
             if (!lastResult) return;
-            track('share_clicked', { mode: lastResult.state.mode });
-            const result = await shareOrCopy(buildShareText(lastResult.state, lastResult.elapsed));
+            const text = buildShareText(lastResult.state, lastResult.elapsed);
+            const file = lastResult.cardFile;
+            track('share_clicked', { mode: lastResult.state.mode, image: !!file });
+
+            if (file && navigator.canShare?.({ files: [file] })) {
+                try {
+                    await navigator.share({ files: [file], text });
+                    return;
+                } catch (e) {
+                    if (e?.name === 'AbortError') return;   // closed the share sheet
+                }
+            }
+            const result = await shareOrCopy(text);
             if (result === 'copied') {
                 btn.textContent = 'Copied! ✓';
                 setTimeout(() => { btn.textContent = '↗ Share'; }, 2000);
