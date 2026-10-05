@@ -1,12 +1,16 @@
 /**
  * duel-client.js — Frontend Socket.io wrapper for duels.
  * Keeps all socket logic out of main.js.
+ *
+ * With DUELS_ONLINE = false (config.js) it never touches the duel server.
  */
 const DuelClient = (() => {
 
     const SERVER = typeof DUEL_SERVER_URL !== 'undefined'
         ? DUEL_SERVER_URL
         : 'http://localhost:3001';
+
+    const ONLINE = typeof DUELS_ONLINE === 'undefined' || DUELS_ONLINE === true;
 
     let socket    = null;
     let handlers  = {};
@@ -17,8 +21,10 @@ const DuelClient = (() => {
         if (handlers[event]) handlers[event](data);
     }
 
+    function isOnline() { return ONLINE; }
+
     function connect() {
-        if (socket?.connected) return;
+        if (!ONLINE || socket?.connected) return;
 
         // Default transports: starts with HTTP long-polling and upgrades to
         // WebSocket, so it also works on networks that block WebSockets.
@@ -44,16 +50,19 @@ const DuelClient = (() => {
 
     // token = Supabase access token (null for guests); the server derives the name from it
     function findMatch(token, difficulty) {
+        if (!ONLINE) { _dispatch('duel_error', { message: 'Online duels are coming soon!' }); return; }
         connect();
         socket.emit('find_match', { token, difficulty });
     }
 
     function createChallenge(token, difficulty) {
+        if (!ONLINE) return;
         connect();
         socket.emit('create_challenge', { token, difficulty });
     }
 
     function joinChallenge(token, code) {
+        if (!ONLINE) return;
         connect();
         socket.emit('join_challenge', { token, code });
     }
@@ -61,10 +70,10 @@ const DuelClient = (() => {
     function cancelMatch()         { socket?.emit('cancel_match'); }
     function submitAnswer(answer)  { socket?.emit('submit_answer', { answer }); }
     function forfeit()             { socket?.emit('forfeit'); disconnect(); }
-    function sendReaction(emoji)   { socket?.emit('send_reaction', { emoji }); }
+    function sendReaction(emoji) { socket?.emit('send_reaction', { emoji }); }
 
     return {
-        on, connect, disconnect, findMatch, createChallenge, joinChallenge,
+        on, isOnline, connect, disconnect, findMatch, createChallenge, joinChallenge,
         cancelMatch, submitAnswer, forfeit, sendReaction,
     };
 })();

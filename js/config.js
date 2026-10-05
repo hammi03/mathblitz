@@ -4,6 +4,9 @@ const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZ
 
 // ── Duel server ───────────────────────────────────────────────────────────────
 const DUEL_SERVER_URL = 'https://mathblitz-production.up.railway.app';
+// false = never contact the duel server; ⚔️ starts a duel against a bot in the browser.
+// Set to true once the server (server/) is running again.
+const DUELS_ONLINE = false;
 
 // ── Analytics (cookieless, no consent banner needed) ──────────────────────────
 // Leave provider null to disable. Neither value is secret.
