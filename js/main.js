@@ -1059,7 +1059,7 @@ const App = (() => {
             ['duel-my-score','duel-opp-score'].forEach(id => document.getElementById(id).textContent = '0');
             ['duel-my-correct','duel-opp-correct'].forEach(id => document.getElementById(id).textContent = '0 ✓');
             document.getElementById('duel-timer').textContent = _duelDuration;
-            document.getElementById('duel-timer').style.color = '';
+            document.getElementById('duel-clock').style.color = '';
             document.getElementById('duel-progress').style.width = '100%';
             _duelAwaiting = false;
             showDuelPhase('active');
@@ -1108,9 +1108,8 @@ const App = (() => {
 
         DuelClient.on('timer_tick', ({ timeLeft }) => {
             _duelLastTick = Date.now();
-            const el = document.getElementById('duel-timer');
-            el.textContent = timeLeft;
-            el.style.color = timeLeft <= 20 ? 'var(--yellow)' : '';
+            document.getElementById('duel-timer').textContent = timeLeft;
+            document.getElementById('duel-clock').style.color = timeLeft <= 20 ? 'var(--yellow)' : '';
             document.getElementById('duel-progress').style.width = `${(timeLeft / _duelDuration) * 100}%`;
         });
 
