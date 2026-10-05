@@ -8,6 +8,12 @@ const DUEL_SERVER_URL = 'https://mathblitz-production.up.railway.app';
 // Set to true once the server (server/) is running again.
 const DUELS_ONLINE = false;
 
+// ── Reminders ─────────────────────────────────────────────────────────────────
+// false = hide the 🔔 button. Turn on only once push reminders are really sent
+// (push subscriptions stored + a scheduled sender); until then it would promise
+// something that never arrives.
+const PUSH_REMINDERS = false;
+
 // ── Analytics (cookieless, no consent banner needed) ──────────────────────────
 // Leave provider null to disable. Neither value is secret.
 //   Umami:     provider 'umami',     scriptUrl 'https://cloud.umami.is/script.js', siteId = website ID

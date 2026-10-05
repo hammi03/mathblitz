@@ -332,7 +332,9 @@ const App = (() => {
         });
         document.getElementById('leaderboard-btn').addEventListener('click', showLeaderboard);
         document.getElementById('history-btn').addEventListener('click', showHistory);
-        document.getElementById('notif-btn').addEventListener('click', requestNotificationPermission);
+        const notifBtn = document.getElementById('notif-btn');
+        notifBtn.classList.toggle('hidden', !PUSH_REMINDERS);
+        if (PUSH_REMINDERS) notifBtn.addEventListener('click', requestNotificationPermission);
 
         // Daily mode setup
         document.getElementById('daily-date-label').textContent = Daily.getDateLabel();
@@ -477,11 +479,7 @@ const App = (() => {
         if (permission === 'granted') {
             btn.textContent = '🔔✓';
             btn.style.color = 'var(--green)';
-            // Show a test notification
-            new Notification('QuantQuiz', {
-                body: "Notifications enabled! We'll remind you about the daily challenge.",
-                icon: '/icons/icon-192.png',
-            });
+            new Notification('QuantQuiz', { body: 'Notifications are on.', icon: '/icons/icon-192.png' });
         } else {
             btn.textContent = '🔕';
         }
