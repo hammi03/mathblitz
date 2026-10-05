@@ -28,8 +28,8 @@
     --haze:      #9FB4D1;   /* secondary text               7.5:1  */
     --ball:      #DCFF4A;   /* lead colour: play, score    13.9:1  */
     --clay:      #FF7A50;   /* mistakes only                       */
-    --rally:     #5CC8FF;   /* duel and opponent            8.4:1  */
-    --amber:     #FFC53D;   /* time running low                    */
+    --rally:     #5CC8FF;   /* duel, opponent, info         8.4:1  */
+    --amber:     #FFC53D;   /* time running low, streak at risk    */
     --hairline:  rgba(244, 247, 251, 0.14);
     --hairline-2: rgba(244, 247, 251, 0.26);
 
@@ -214,14 +214,14 @@ body {
     padding: 1rem 1.2rem;
     background: var(--court-2);
     border: none;
-    border-left: 4px solid var(--line);     /* a court line */
+    border-left: 4px solid var(--ball);     /* yellow = something to start */
     border-radius: var(--r-md);
     text-align: left;
     cursor: pointer;
     transition: background 0.15s;
 }
 .daily-card:hover { background: var(--court-3); }
-.daily-card.done  { cursor: default; border-left-color: var(--ball); }
+.daily-card.done  { cursor: default; border-left-color: var(--rally); }   /* blue = info */
 .daily-card.done:hover { background: var(--court-2); }
 .daily-top   { display: flex; align-items: baseline; gap: 0.6rem; }
 .daily-title { font-family: var(--font-num); font-size: 1.9rem; font-weight: 900; line-height: 1; }
@@ -600,8 +600,8 @@ h2 {
 
 /* Streak fire: heats up in the multiplier steps */
 .streak-val { transition: color 0.2s, transform 0.2s; }
-.streak-val[data-heat="1"] { color: var(--amber); }
-.streak-val[data-heat="2"] { color: var(--clay); transform: scale(1.08); }
+.streak-val[data-heat="1"] { color: var(--line); }
+.streak-val[data-heat="2"] { color: var(--amber); transform: scale(1.08); }
 .streak-val[data-heat="3"] { color: var(--ball); transform: scale(1.15); }
 .streak-val:not([data-heat="0"])::after {
     content: '🔥';
@@ -755,7 +755,7 @@ h2 {
     position: absolute;
     top: 0.9rem;
     right: 1rem;
-    background: var(--ball);
+    background: var(--rally);
     color: var(--court);
     font-size: 0.75rem;
     font-weight: 800;

@@ -57,7 +57,7 @@ const UI = (() => {
         const fill = document.getElementById('progress-fill');
         fill.style.width = `${(timeLeft / totalTime) * 100}%`;
         const el = document.getElementById('timer-display');
-        const color = timeLeft <= 10 ? 'var(--red)' : timeLeft <= 20 ? 'var(--yellow)' : 'var(--accent)';
+        const color = timeLeft <= 20 ? 'var(--yellow)' : 'var(--accent)';   // orange is kept for mistakes
         el.style.color = color;
         fill.style.background = timeLeft <= 20 ? color : '';
         // Final seconds: the clock beats once per second
@@ -222,7 +222,7 @@ const UI = (() => {
     function confetti() {
         if (reduceMotion()) return;
         const origin = document.getElementById('res-hero').getBoundingClientRect();
-        const colors = ['var(--ball)', 'var(--line)', 'var(--amber)', 'var(--clay)'];
+        const colors = ['var(--ball)', 'var(--line)', 'var(--amber)', 'var(--rally)'];
         const layer  = document.createElement('div');
         layer.className = 'confetti';
         for (let i = 0; i < 46; i++) {

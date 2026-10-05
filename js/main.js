@@ -1089,7 +1089,7 @@ const App = (() => {
             _duelLastTick = Date.now();
             const el = document.getElementById('duel-timer');
             el.textContent = timeLeft;
-            el.style.color = timeLeft <= 10 ? 'var(--red)' : timeLeft <= 20 ? 'var(--yellow)' : '';
+            el.style.color = timeLeft <= 20 ? 'var(--yellow)' : '';
             document.getElementById('duel-progress').style.width = `${(timeLeft / _duelDuration) * 100}%`;
         });
 
