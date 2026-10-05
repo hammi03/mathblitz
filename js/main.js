@@ -1057,12 +1057,12 @@ const App = (() => {
             UI.flashCard(document.querySelector('#duel-active .question-card'), correct);
             if (correct) {
                 const bonus = multiplier > 1 ? ` ×${multiplier}` : '';
-                fb.textContent = `+${pointsEarned}${bonus}`;
+                fb.textContent = `✓ Correct +${pointsEarned}${bonus}`;
                 fb.className   = 'feedback correct';
                 input.classList.add('correct');
                 Sound.correct();
             } else {
-                fb.textContent = `✗ → ${correctAnswer}`;
+                fb.textContent = `✗ Wrong, it's ${correctAnswer}`;
                 fb.className   = 'feedback wrong';
                 input.classList.add('wrong');
                 Sound.wrong();
@@ -1118,6 +1118,7 @@ const App = (() => {
                 isTie ? 'Draw!' : oppLeft ? 'Opponent left. You win!' : isWin ? 'Victory!' : 'Defeat';
 
             showDuelPhase('result');
+            UI.announce(`${document.getElementById('duel-result-title').textContent} ${me.score} to ${opp.score}.`);
             DuelClient.disconnect();
         });
 

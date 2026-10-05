@@ -162,12 +162,12 @@ const UI = (() => {
 
         if (correct) {
             const bonus = multiplier > 1 ? ` ×${multiplier}` : '';
-            fb.textContent = `+${pointsEarned}${bonus}`;
+            fb.textContent = `✓ Correct +${pointsEarned}${bonus}`;
             fb.className   = 'feedback correct';
             input.classList.add('correct');
             spawnScorePop(pointsEarned, multiplier);
         } else {
-            fb.textContent = `✗  →  ${correctAnswer}`;
+            fb.textContent = `✗ Wrong, it's ${correctAnswer}`;
             fb.className   = 'feedback wrong';
             input.classList.add('wrong');
         }
@@ -259,6 +259,18 @@ const UI = (() => {
         countUp('res-streak',   state.bestStreak);
 
         if (best.celebrate) setTimeout(confetti, 350);
+
+        // One spoken summary instead of the count-up animation
+        const ending = state.mode === 'classic' ? "Time's up. " : '';
+        const value  = sprint ? `${elapsed} seconds` : `${state.score} points`;
+        announce(`${ending}${v.title}. ${value}. ${v.delta}`.trim());
+    }
+
+    // Polite screen-reader message (cleared first so a repeat is read again)
+    function announce(text) {
+        const el = document.getElementById('announcer');
+        el.textContent = '';
+        setTimeout(() => { el.textContent = text; }, 60);
     }
 
     // ── Confetti: ball-yellow and court-white bits from the score ─────────────
@@ -418,6 +430,7 @@ const UI = (() => {
     return {
         showScreen,
         focusHeading,
+        announce,
         initDialogs,
         updateHUD,
         updateTimer,

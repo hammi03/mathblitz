@@ -30,6 +30,7 @@
 </head>
 <body>
     <a class="skip-link" href="#main">Skip to content</a>
+    <div id="announcer" class="sr-only" aria-live="polite" aria-atomic="true"></div>
 
     <!-- ── COUNTDOWN OVERLAY ── -->
     <div id="countdown-overlay" class="countdown-overlay">
@@ -261,13 +262,13 @@
         <div class="progress-bar"><div class="progress-fill" id="progress-fill"></div></div>
 
         <div class="question-card" id="question-card">
-            <div class="combo" id="combo" aria-live="polite"></div>
+            <div class="combo" id="combo" aria-hidden="true"></div>
             <div class="question" id="question-display">—</div>
             <div class="answer-row">
                 <input type="text" id="answer-input" class="answer-input" placeholder="answer" autocomplete="off" inputmode="numeric" aria-label="Your answer" maxlength="10">
                 <button id="submit-btn" class="btn-submit">Enter</button>
             </div>
-            <div class="feedback" id="feedback">&nbsp;</div>
+            <div class="feedback" id="feedback" aria-live="polite">&nbsp;</div>
         </div>
 
         <div class="game-footer">
@@ -425,7 +426,7 @@
                     <input type="text" id="duel-input" class="answer-input" placeholder="answer" autocomplete="off" inputmode="numeric" aria-label="Your answer" maxlength="10">
                     <button id="duel-submit-btn" class="btn-submit">Enter</button>
                 </div>
-                <div class="feedback" id="duel-feedback">&nbsp;</div>
+                <div class="feedback" id="duel-feedback" aria-live="polite">&nbsp;</div>
             </div>
 
             <div class="reaction-bar">
