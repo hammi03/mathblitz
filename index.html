@@ -256,7 +256,7 @@
             <div class="combo" id="combo" aria-live="polite"></div>
             <div class="question" id="question-display">—</div>
             <div class="answer-row">
-                <input type="number" id="answer-input" placeholder="answer" autocomplete="off" inputmode="numeric">
+                <input type="text" id="answer-input" class="answer-input" placeholder="answer" autocomplete="off" inputmode="numeric" aria-label="Your answer" maxlength="10">
                 <button id="submit-btn" class="btn-submit">Enter</button>
             </div>
             <div class="feedback" id="feedback">&nbsp;</div>
@@ -266,6 +266,8 @@
             <button id="quit-btn" class="btn-ghost">Quit</button>
             <button class="btn-ghost sound-toggle" aria-pressed="true">Sound on</button>
         </div>
+
+        <div class="numpad" data-input="answer-input" data-submit="submit-btn"></div>
     </div>
 
     <!-- ── RESULTS SCREEN ── -->
@@ -411,7 +413,7 @@
             <div class="question-card">
                 <div class="question" id="duel-question">—</div>
                 <div class="answer-row">
-                    <input type="number" id="duel-input" placeholder="answer" autocomplete="off" inputmode="numeric">
+                    <input type="text" id="duel-input" class="answer-input" placeholder="answer" autocomplete="off" inputmode="numeric" aria-label="Your answer" maxlength="10">
                     <button id="duel-submit-btn" class="btn-submit">Enter</button>
                 </div>
                 <div class="feedback" id="duel-feedback">&nbsp;</div>
@@ -424,6 +426,8 @@
                 <button class="reaction-btn" data-emoji="🤯">🤯</button>
             </div>
             <button id="forfeit-btn" class="btn-ghost">Forfeit</button>
+
+            <div class="numpad" data-input="duel-input" data-submit="duel-submit-btn"></div>
         </div>
 
         <!-- Phase: result -->

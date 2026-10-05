@@ -273,6 +273,49 @@ const UI = (() => {
         setTimeout(() => overlay.classList.remove('active'), 2800);
     }
 
+    // ── Number pad (touch screens) ────────────────────────────────────────────
+    // Fills every .numpad with keys that type into its answer field and press its
+    // Enter button. On touch screens the system keyboard is suppressed
+    // (inputmode="none"); a physical keyboard still types into the field.
+
+    const coarse = () => window.matchMedia?.('(pointer: coarse)').matches;
+
+    function mountNumpads() {
+        document.querySelectorAll('.numpad').forEach(pad => {
+            const input  = document.getElementById(pad.dataset.input);
+            const submit = document.getElementById(pad.dataset.submit);
+            if (coarse()) input.setAttribute('inputmode', 'none');
+
+            const keys = [
+                ['1'], ['2'], ['3'], ['4'], ['5'], ['6'], ['7'], ['8'], ['9'],
+                ['−', 'minus', 'Minus'], ['0'], ['⌫', 'del', 'Delete'],
+            ];
+            pad.innerHTML = keys.map(([label, key = label, aria]) =>
+                `<button type="button" class="key" data-key="${key}"${aria ? ` aria-label="${aria}"` : ''}>${label}</button>`
+            ).join('') + '<button type="button" class="key key-enter" data-key="enter">Enter</button>';
+
+            // Keep the focus (and caret) in the answer field
+            pad.addEventListener('pointerdown', e => { if (e.target.closest('.key')) e.preventDefault(); });
+            pad.addEventListener('click', e => {
+                const key = e.target.closest('.key')?.dataset.key;
+                if (!key) return;
+                if (key === 'enter') { submit.click(); return; }
+                let v = input.value;
+                if      (key === 'del')   v = v.slice(0, -1);
+                else if (key === 'minus') v = v.startsWith('-') ? v.slice(1) : '-' + v;
+                else if (v.replace('-', '').length < 9) v += key;
+                input.value = v;
+                input.dispatchEvent(new Event('input', { bubbles: true }));
+            });
+
+            // Typed or pasted text: digits and one leading minus only
+            input.addEventListener('input', () => {
+                const clean = input.value.replace(/[^\d-]/g, '').replace(/(?!^)-/g, '');
+                if (clean !== input.value) input.value = clean;
+            });
+        });
+    }
+
     // ── History screen ────────────────────────────────────────────────────────
 
     const MODE_LABEL = { classic: 'Classic', sprint: 'Sprint', zen: 'Zen', daily: 'Daily', community: 'Community' };
@@ -343,5 +386,6 @@ const UI = (() => {
         showCombo,
         showRankUp,
         renderHistory,
+        mountNumpads,
     };
 })();

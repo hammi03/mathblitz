@@ -1469,6 +1469,7 @@ const App = (() => {
     // ── Init ──────────────────────────────────────────────────────────────────
 
     async function init() {
+        UI.mountNumpads();
         initMenu();
         initAnswerInput();
         initNav();
