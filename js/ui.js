@@ -33,11 +33,55 @@ const UI = (() => {
 
     // ── Screens ───────────────────────────────────────────────────────────────
 
+    // Only the active screen is in the page; the others are hidden and inert.
+    // Focus moves to the new screen's heading (not on the first render).
+    let firstRender = true;
+
     function showScreen(name) {
-        Object.values(screens).forEach(s => s.classList.remove('active'));
-        screens[name].classList.add('active');
+        Object.entries(screens).forEach(([key, s]) => {
+            const on = key === name;
+            s.classList.toggle('active', on);
+            s.hidden = !on;
+            s.inert  = !on;
+        });
         window.scrollTo(0, 0);
+        if (!firstRender) focusHeading(screens[name]);
+        firstRender = false;
         document.dispatchEvent(new CustomEvent('screenchange', { detail: name }));
+    }
+
+    // The visible h1 of a screen (duel phases hide theirs)
+    function focusHeading(root) {
+        const h1 = [...root.querySelectorAll('h1')].find(h => h.getClientRects().length > 0);
+        h1?.focus({ preventScroll: true });
+    }
+
+    // ── Dialogs: focus in, Escape out, page behind them inert ─────────────────
+
+    function initDialogs() {
+        const main     = document.getElementById('main');
+        const overlays = [...document.querySelectorAll('.modal-overlay')];
+        const closers  = { 'auth-modal': 'auth-close', 'profile-modal': 'profile-close-btn', 'submit-modal': 'submit-close-btn' };
+        let returnTo   = null;
+
+        const sync = () => {
+            const open = overlays.find(o => o.classList.contains('active'));
+            main.inert = !!open;
+            if (open && !open.contains(document.activeElement)) {
+                returnTo = document.activeElement;
+                open.querySelector('input, button:not([disabled])')?.focus();
+            } else if (!open && returnTo) {
+                returnTo.focus?.({ preventScroll: true });
+                returnTo = null;
+            }
+        };
+        overlays.forEach(o => new MutationObserver(sync).observe(o, { attributes: true, attributeFilter: ['class'] }));
+
+        document.addEventListener('keydown', e => {
+            if (e.key !== 'Escape') return;
+            const open = overlays.find(o => o.classList.contains('active'));
+            if (open) document.getElementById(closers[open.id])?.click();
+        });
     }
 
     // ── Game HUD ──────────────────────────────────────────────────────────────
@@ -373,6 +417,8 @@ const UI = (() => {
 
     return {
         showScreen,
+        focusHeading,
+        initDialogs,
         updateHUD,
         updateTimer,
         updateSprintProgress,

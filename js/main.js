@@ -898,6 +898,7 @@ const App = (() => {
         document.getElementById('duel-active').classList.toggle('hidden',    phase !== 'active');
         document.getElementById('duel-result').classList.toggle('hidden',    phase !== 'result');
         if (phase !== 'active') stopDuelWatchdog();
+        if (phase === 'result' && duelScreenActive()) UI.focusHeading(document.getElementById('screen-duel'));
     }
 
     function duelScreenActive() {
@@ -1025,6 +1026,7 @@ const App = (() => {
             // Switch to countdown sub-phase
             document.getElementById('duel-pre-search').classList.add('hidden');
             document.getElementById('duel-pre-countdown').classList.remove('hidden');
+            UI.focusHeading(document.getElementById('screen-duel'));
         });
 
         DuelClient.on('countdown', n => {
@@ -1485,6 +1487,7 @@ const App = (() => {
 
     async function init() {
         UI.mountNumpads();
+        UI.initDialogs();
         initMenu();
         initAnswerInput();
         initNav();

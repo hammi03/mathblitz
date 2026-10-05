@@ -29,6 +29,7 @@
     <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
+    <a class="skip-link" href="#main">Skip to content</a>
 
     <!-- ── COUNTDOWN OVERLAY ── -->
     <div id="countdown-overlay" class="countdown-overlay">
@@ -40,8 +41,8 @@
 
     <!-- ── PROFILE MODAL ── -->
     <div id="profile-modal" class="modal-overlay">
-        <div class="modal">
-            <h2>Profile</h2>
+        <div class="modal" role="dialog" aria-modal="true" aria-labelledby="profile-title">
+            <h2 id="profile-title">Profile</h2>
             <div class="profile-body">
                 <div class="profile-username" id="profile-username">—</div>
                 <div class="profile-rank" id="profile-rank"></div>
@@ -76,8 +77,8 @@
 
     <!-- ── SUBMIT PROBLEM MODAL ── -->
     <div id="submit-modal" class="modal-overlay">
-        <div class="modal">
-            <h2>Submit a problem</h2>
+        <div class="modal" role="dialog" aria-modal="true" aria-labelledby="submit-title">
+            <h2 id="submit-title">Submit a problem</h2>
             <div class="submit-equation">
                 <input type="number" id="submit-a" placeholder="47" min="2" max="999">
                 <span class="submit-op">×</span>
@@ -92,7 +93,8 @@
 
     <!-- ── AUTH MODAL ── -->
     <div id="auth-modal" class="modal-overlay">
-        <div class="modal">
+        <div class="modal" role="dialog" aria-modal="true" aria-labelledby="auth-title">
+            <h2 id="auth-title" class="sr-only">Sign in or create an account</h2>
             <div class="modal-tabs">
                 <button class="modal-tab active" data-tab="signin">Sign In</button>
                 <button class="modal-tab" data-tab="signup">Sign Up</button>
@@ -132,11 +134,13 @@
         </div>
     </div>
 
+    <main id="main" tabindex="-1">
+
     <!-- ── MENU SCREEN ── -->
     <div id="screen-menu" class="screen active">
         <header class="menu-header">
             <div class="logo">
-                <h1><img src="icons/qq-mark.svg" alt="" class="logo-mark" width="54" height="49"> QuantQuiz</h1>
+                <h1 tabindex="-1"><img src="icons/qq-mark.svg" alt="" class="logo-mark" width="54" height="49"> QuantQuiz</h1>
             </div>
             <div class="header-actions">
             <button class="icon-btn sound-toggle" aria-label="Sound" aria-pressed="true"></button>
@@ -233,7 +237,8 @@
     </div>
 
     <!-- ── GAME SCREEN ── -->
-    <div id="screen-game" class="screen">
+    <div id="screen-game" class="screen" hidden>
+        <h1 class="sr-only" tabindex="-1">Round in progress</h1>
         <div class="game-header">
             <div class="hud-stat">
                 <span class="hud-label">Score</span>
@@ -274,10 +279,10 @@
     </div>
 
     <!-- ── RESULTS SCREEN ── -->
-    <div id="screen-results" class="screen">
+    <div id="screen-results" class="screen" hidden>
         <p class="results-sub" id="results-sub"></p>
         <div class="result-hero">
-            <h1 class="results-title" id="results-title">Round over</h1>
+            <h1 class="results-title" id="results-title" tabindex="-1">Round over</h1>
             <div class="hero-score">
                 <span class="hero-value" id="res-hero">0</span>
                 <span class="hero-label" id="res-hero-label">points</span>
@@ -318,10 +323,10 @@
     </div>
 
     <!-- ── LEADERBOARD SCREEN ── -->
-    <div id="screen-leaderboard" class="screen">
+    <div id="screen-leaderboard" class="screen" hidden>
         <div class="lb-header">
             <button id="lb-back" class="btn-ghost">← Back</button>
-            <h1 class="lb-title">Leaderboard</h1>
+            <h1 class="lb-title" tabindex="-1">Leaderboard</h1>
             <div></div>
         </div>
 
@@ -359,10 +364,10 @@
     </div>
 
     <!-- ── HISTORY SCREEN ── -->
-    <div id="screen-history" class="screen">
+    <div id="screen-history" class="screen" hidden>
         <div class="lb-header">
             <button id="history-back" class="btn-ghost">← Back</button>
-            <h1 class="lb-title">History</h1>
+            <h1 class="lb-title" tabindex="-1">History</h1>
             <div></div>
         </div>
         <div id="history-list" class="lb-list">
@@ -371,20 +376,20 @@
     </div>
 
     <!-- ── DUEL SCREEN ── -->
-    <div id="screen-duel" class="screen">
+    <div id="screen-duel" class="screen" hidden>
 
         <!-- Phase: searching / countdown -->
         <div id="duel-searching" class="duel-phase">
             <div id="duel-pre-search">
                 <div class="duel-sword">⚔️</div>
-                <h2 class="duel-search-title" id="duel-search-title">Finding Opponent</h2>
+                <h1 class="duel-search-title" id="duel-search-title" tabindex="-1">Finding Opponent</h1>
                 <div class="duel-dots"><span></span><span></span><span></span></div>
                 <p class="duel-search-sub" id="duel-search-sub">Waiting for another player...</p>
                 <button id="challenge-btn" class="btn-secondary btn-challenge">🔗 Challenge a friend</button>
                 <button id="cancel-duel-btn" class="btn-ghost">Cancel</button>
             </div>
             <div id="duel-pre-countdown" class="hidden">
-                <p class="duel-found-label" id="duel-found-label">Opponent found!</p>
+                <h1 class="duel-found-label" id="duel-found-label" tabindex="-1">Opponent found!</h1>
                 <p class="duel-opp-found" id="duel-opp-found">—</p>
                 <div class="duel-countdown-big" id="duel-countdown-num">3</div>
             </div>
@@ -392,6 +397,7 @@
 
         <!-- Phase: active duel -->
         <div id="duel-active" class="duel-phase hidden">
+            <h1 class="sr-only" tabindex="-1">Duel in progress</h1>
             <div class="duel-scores">
                 <div class="duel-pscore">
                     <span class="duel-pname" id="duel-my-name">You</span>
@@ -436,7 +442,7 @@
         <!-- Phase: result -->
         <div id="duel-result" class="duel-phase hidden">
             <div class="duel-result-icon" id="duel-result-icon">🏆</div>
-            <h1 class="duel-result-title" id="duel-result-title">Victory!</h1>
+            <h1 class="duel-result-title" id="duel-result-title" tabindex="-1">Victory!</h1>
             <div class="duel-result-scores">
                 <div class="duel-result-player">
                     <span class="duel-result-name" id="dr-my-name">You</span>
@@ -456,6 +462,8 @@
             </div>
         </div>
     </div>
+
+    </main>
 
     <!-- Scripts — order matters -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
