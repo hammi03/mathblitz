@@ -1,19 +1,22 @@
 /**
- * analytics.js — Provider-agnostic, cookieless event tracking (Umami or Plausible).
- * Configured via ANALYTICS in config.js; does nothing until a provider is set.
+ * analytics.js — Vercel Web Analytics (cookieless) behind one track() call.
+ * The script itself is loaded in index.html from /_vercel/insights/script.js;
+ * it only answers once Web Analytics is enabled in the Vercel dashboard.
+ * Until then, or when it is blocked, events just wait in a short queue.
  *
- * track() never throws — not when the script is blocked, not when it's unconfigured.
- * Never pass personal data (emails, usernames, user IDs) as props.
+ * track() never throws. Never pass personal data (emails, usernames, user IDs).
  */
 const Analytics = (() => {
 
-    const cfg = typeof ANALYTICS !== 'undefined' ? ANALYTICS : {};
+    // Vercel's documented queue stub: calls made before the script loads are
+    // replayed by it. Harmless if the script never arrives.
+    window.va = window.va || function () { (window.vaq = window.vaq || []).push(arguments); };
 
     // Events that get the visit's UTM params attached
     const UTM_EVENTS = ['game_start', 'signup'];
 
-    // UTM params of this page load. Kept in memory only: writing them to
-    // localStorage would be non-essential device storage (consent required).
+    // UTM params of this page load, kept in memory for the session only:
+    // no cookie, no localStorage, nothing stored on the device.
     const utm = (() => {
         try {
             const params = new URLSearchParams(location.search);
@@ -28,50 +31,23 @@ const Analytics = (() => {
         }
     })();
 
-    const queue = [];   // events fired before the provider script has loaded
-    let ready = false;
-
-    function enabled() {
-        return !!(cfg.provider && cfg.scriptUrl && cfg.siteId);
-    }
-
-    function send(name, props) {
-        if (cfg.provider === 'umami')     window.umami?.track(name, props);
-        if (cfg.provider === 'plausible') window.plausible?.(name, { props });
-    }
-
-    function flush() {
-        ready = true;
-        while (queue.length) {
-            const [name, props] = queue.shift();
-            try { send(name, props); } catch { /* ignore */ }
+    // Vercel accepts flat string / number / boolean / null values only
+    function clean(props) {
+        const out = {};
+        for (const [k, v] of Object.entries(props)) {
+            if (['string', 'number', 'boolean'].includes(typeof v) || v === null) out[k] = v;
         }
-    }
-
-    function load() {
-        try {
-            if (!enabled()) return;
-            const s = document.createElement('script');
-            s.defer = true;
-            s.src   = cfg.scriptUrl;
-            if (cfg.provider === 'umami') s.dataset.websiteId = cfg.siteId;
-            else                          s.dataset.domain    = cfg.siteId;
-            s.onload  = flush;
-            s.onerror = () => { queue.length = 0; };   // blocked → drop silently
-            document.head.appendChild(s);
-        } catch { /* ignore */ }
+        return out;
     }
 
     function track(eventName, props = {}) {
         try {
-            if (!enabled()) return;
-            const data = UTM_EVENTS.includes(eventName) ? { ...props, ...utm } : { ...props };
-            if (ready)                   send(eventName, data);
-            else if (queue.length < 50)  queue.push([eventName, data]);
+            const data = clean(UTM_EVENTS.includes(eventName) ? { ...props, ...utm } : props);
+            if (typeof window.va === 'function')            window.va('event', { name: eventName, data });
+            else if (typeof window.va?.track === 'function') window.va.track(eventName, data);
         } catch { /* never break the app for analytics */ }
     }
 
-    load();
     return { track };
 })();
 

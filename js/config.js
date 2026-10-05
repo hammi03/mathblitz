@@ -13,13 +13,3 @@ const DUELS_ONLINE = false;
 // (push subscriptions stored + a scheduled sender); until then it would promise
 // something that never arrives.
 const PUSH_REMINDERS = false;
-
-// ── Analytics (cookieless, no consent banner needed) ──────────────────────────
-// Leave provider null to disable. Neither value is secret.
-//   Umami:     provider 'umami',     scriptUrl 'https://cloud.umami.is/script.js', siteId = website ID
-//   Plausible: provider 'plausible', scriptUrl 'https://plausible.io/js/script.js', siteId = your domain
-const ANALYTICS = {
-    provider:  null,
-    scriptUrl: '',
-    siteId:    '',
-};
