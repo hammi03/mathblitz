@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="QuantQuiz">
+  <rect width="64" height="64" rx="14" fill="#0C2340"/>
+  <g fill="none" stroke-width="6.5" stroke-linecap="round">
+    <rect x="9" y="11" width="19" height="36" rx="9.5" stroke="#F4F7FB"/>
+    <path d="M21 39 L29 52" stroke="#F4F7FB"/>
+    <rect x="36" y="11" width="19" height="36" rx="9.5" stroke="#DCFF4A"/>
+    <path d="M48 39 L56 52" stroke="#DCFF4A"/>
+  </g>
+</svg>

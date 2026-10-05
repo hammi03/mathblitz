@@ -9,6 +9,20 @@ const POINTS_BASE     = 10;
 const STREAK_EVERY    = 3;
 const QUESTION_POOL   = 80;   // pre-generate plenty so players never run out
 
+// Same ranges as js/game.js
+const DIFFICULTY = {
+    easy:   { min: 11,  max: 49,   noMult: 10  },
+    medium: { min: 51,  max: 99,   noMult: 10  },
+    hard:   { min: 101, max: 3000, noMult: 100 },
+};
+
+// Bot used when nobody else is online: seconds per answer (mean ± jitter) and accuracy
+const BOT = {
+    easy:   { name: 'QuantBot · Easy',   mean: 3.5,  jitter: 1.5, accuracy: 0.90 },
+    medium: { name: 'QuantBot · Medium', mean: 5.5,  jitter: 2.0, accuracy: 0.80 },
+    hard:   { name: 'QuantBot · Hard',   mean: 11.0, jitter: 4.0, accuracy: 0.70 },
+};
+
 // ── Seeded PRNG (mulberry32) ──────────────────────────────────────────────────
 
 function seededRandom(seed) {
@@ -32,15 +46,16 @@ function randNoMult(rng, min, max, divisor) {
     return n;
 }
 
-// ── Question generation — multiplication only, 💀💀 tier (51–99) ─────────────
+// ── Question generation — multiplication only ────────────────────────────────
 
-function generateQuestions(seed, count) {
+function generateQuestions(seed, count, difficulty) {
     const rng = seededRandom(seed);
+    const cfg = DIFFICULTY[difficulty];
     const out = [];
 
     for (let i = 0; i < count; i++) {
-        const a = randNoMult(rng, 51, 99, 10);
-        const b = randNoMult(rng, 51, 99, 10);
+        const a = randNoMult(rng, cfg.min, cfg.max, cfg.noMult);
+        const b = randNoMult(rng, cfg.min, cfg.max, cfg.noMult);
         out.push({ display: `${a} × ${b}`, answer: a * b });
     }
     return out;
@@ -48,13 +63,14 @@ function generateQuestions(seed, count) {
 
 // ── Room management ───────────────────────────────────────────────────────────
 
-function createRoom(roomId, p0username, p1username) {
+function createRoom(roomId, p0username, p1username, difficulty = 'medium', p1IsBot = false) {
     // Derive a numeric seed from the room ID
     const seed = [...roomId].reduce((acc, c) => (acc * 31 + c.charCodeAt(0)) | 0, 0) >>> 0;
-    const questions = generateQuestions(seed, QUESTION_POOL);
+    const questions = generateQuestions(seed, QUESTION_POOL, difficulty);
 
     return {
         id: roomId,
+        difficulty,
         questions,
         duration: DURATION,
         active:   false,
@@ -63,7 +79,7 @@ function createRoom(roomId, p0username, p1username) {
         timer:     null,
         players: [
             { username: p0username, score: 0, correct: 0, wrong: 0, streak: 0, bestStreak: 0, qIdx: 0 },
-            { username: p1username, score: 0, correct: 0, wrong: 0, streak: 0, bestStreak: 0, qIdx: 0 },
+            { username: p1username, score: 0, correct: 0, wrong: 0, streak: 0, bestStreak: 0, qIdx: 0, isBot: p1IsBot },
         ],
     };
 }
@@ -100,4 +116,4 @@ function processAnswer(room, playerIdx, userAnswer) {
     };
 }
 
-module.exports = { createRoom, processAnswer, DURATION };
+module.exports = { createRoom, processAnswer, DURATION, DIFFICULTY, BOT };

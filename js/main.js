@@ -5,9 +5,10 @@
 
 // ── Rank system (global so ui.js leaderboard rendering can access) ─────────
 const RANKS = [
-    { name: 'Bronze', icon: '🥉', min: 0,    cls: 'rank-bronze' },
-    { name: 'Silver', icon: '🥈', min: 1000, cls: 'rank-silver' },
-    { name: 'Gold',   icon: '🥇', min: 5000, cls: 'rank-gold'   },
+    { name: 'Bronze',    icon: '🥉', min: 0,    cls: 'rank-bronze'  },
+    { name: 'Silver I',  icon: '🥈', min: 1000, cls: 'rank-silver'  },
+    { name: 'Silver II', icon: '🥈', min: 2500, cls: 'rank-silver2' },
+    { name: 'Gold',      icon: '🥇', min: 5000, cls: 'rank-gold'    },
 ];
 function getRankForXP(xp) {
     let r = RANKS[0];
@@ -30,18 +31,21 @@ const App = (() => {
     let zenTimer        = null;
     let zenElapsed      = 0;
     let countdownActive = false;
+    let currentXP       = 0;      // server-side total_xp of the signed-in user
+    let dailyDone       = false;  // signed-in user has started today's daily
+    let session         = null;   // { sessionId, questions } of the running server-scored game
+    let currentStreak   = 0;      // day streak of the signed-in user
+    let lastResult      = null;   // { state, elapsed } of the last finished game, for sharing
 
     const lb = { mode: 'classic', difficulty: 'medium', timeLimit: 60 };
 
     // ── XP & Rank helpers ─────────────────────────────────────────────────────
 
-    function getTotalXP()    { return parseInt(localStorage.getItem('mathblitz_total_xp') || '0', 10); }
-    function addXP(pts)      { const n = getTotalXP() + pts; localStorage.setItem('mathblitz_total_xp', n); return n; }
-    function canSubmit(xp)   { return xp >= RANKS[1].min; }  // Silver+
+    function canSubmit(xp)   { return xp >= RANKS[2].min; }  // Silver II+ (enforced server-side too)
 
     function updateRankBadge(xp) {
         const badge = document.getElementById('rank-badge');
-        if (!currentUser) { badge.classList.add('hidden'); return; }
+        if (!currentUser) { badge.className = 'rank-badge hidden'; return; }
         const rank = getRankForXP(xp);
         badge.textContent = `${rank.icon} ${rank.name}`;
         badge.className   = `rank-badge ${rank.cls}`;
@@ -50,28 +54,100 @@ const App = (() => {
     // ── History helpers ───────────────────────────────────────────────────────
 
     function saveGameHistory(state, elapsed) {
-        const key  = 'mathblitz_history';
+        const key  = 'quantquiz_history';
         const hist = JSON.parse(localStorage.getItem(key) || '[]');
         hist.unshift({
-            ts:      Date.now(),
-            mode:    state.mode,
-            diff:    state.difficulty,
-            score:   state.score,
-            correct: state.correct,
-            wrong:   state.wrong,
-            streak:  state.bestStreak,
-            elapsed: parseFloat(elapsed),
+            ts:        Date.now(),
+            mode:      state.mode,
+            diff:      state.difficulty,
+            score:     state.score,
+            correct:   state.correct,
+            wrong:     state.wrong,
+            streak:    state.bestStreak,
+            elapsed:   parseFloat(elapsed),
+            questions: state.answeredQuestions ?? [],
         });
         if (hist.length > 20) hist.pop();
         localStorage.setItem(key, JSON.stringify(hist));
+    }
+
+    // ── Daily goal + play streak (local, works for guests too) ────────────────
+
+    const DAILY_GOAL   = 3;   // rounds per day
+    const PROGRESS_KEY = 'quantquiz_progress';
+
+    function localISO(d = new Date()) {
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    }
+    function yesterdayISO() {
+        const d = new Date();
+        d.setDate(d.getDate() - 1);
+        return localISO(d);
+    }
+
+    // { last: 'YYYY-MM-DD', streak, rounds } — rounds counts today's finished games
+    function loadProgress() {
+        try {
+            const p = JSON.parse(localStorage.getItem(PROGRESS_KEY) || '{}');
+            const today = localISO();
+            const alive = p.last === today || p.last === yesterdayISO();
+            return {
+                last:   p.last ?? null,
+                streak: alive ? (p.streak ?? 0) : 0,
+                rounds: p.last === today ? (p.rounds ?? 0) : 0,
+            };
+        } catch {
+            return { last: null, streak: 0, rounds: 0 };
+        }
+    }
+
+    function recordRound() {
+        const p     = loadProgress();
+        const today = localISO();
+        const firstToday = p.last !== today;
+        const next = {
+            last:   today,
+            streak: firstToday ? p.streak + 1 : p.streak,
+            rounds: p.rounds + 1,
+        };
+        try { localStorage.setItem(PROGRESS_KEY, JSON.stringify(next)); } catch { /* private mode */ }
+        return { ...next, goalJustMet: next.rounds === DAILY_GOAL };
+    }
+
+    // Set when the last finished round had no answers: it didn't count
+    let emptyRound = false;
+
+    // Pips + one line of text; shared by the menu and the results screen
+    function renderToday(el) {
+        const p       = loadProgress();
+        const done    = Math.min(p.rounds, DAILY_GOAL);
+        const atRisk  = p.rounds === 0 && p.streak > 0;
+        const pips    = Array.from({ length: DAILY_GOAL }, (_, i) =>
+            `<span class="pip${i < done ? ' on' : ''}"></span>`).join('');
+        const restart = emptyRound && el.closest('#screen-results');
+        const text =
+            restart                   ? "No answers, so it didn't count. Play again!" :
+            atRisk                    ? 'Play today to keep your streak alive' :
+            p.rounds === 0            ? `Today's goal: ${DAILY_GOAL} rounds` :
+            p.rounds < DAILY_GOAL     ? `${DAILY_GOAL - p.rounds} more ${DAILY_GOAL - p.rounds === 1 ? 'round' : 'rounds'} to today's goal` :
+                                        `Goal done for today`;
+        const streak = p.streak > 0 ? `<span class="today-streak">🔥 ${p.streak}</span>` : '';
+        el.classList.toggle('at-risk', atRisk && !restart);
+        el.classList.toggle('empty-round', !!restart);
+        el.classList.toggle('goal-done', p.rounds >= DAILY_GOAL);
+        el.innerHTML = `<span class="pips">${pips}</span><span class="today-text">${text}</span>${streak}`;
+    }
+
+    function refreshToday() {
+        document.querySelectorAll('.today-strip').forEach(renderToday);
     }
 
     // ── Local storage ─────────────────────────────────────────────────────────
 
     function storageKey(mode, diff, time) {
         return mode === 'classic'
-            ? `mathblitz_best_${mode}_${diff}_${time}s`
-            : `mathblitz_best_${mode}_${diff}`;
+            ? `quantquiz_best_${mode}_${diff}_${time}s`
+            : `quantquiz_best_${mode}_${diff}`;
     }
     function getBest(mode, diff, time) {
         const v = localStorage.getItem(storageKey(mode, diff, time));
@@ -84,7 +160,7 @@ const App = (() => {
         return better;
     }
     function formatBest(mode, diff, time) {
-        if (mode === 'daily') return Daily.hasCompletedToday() ? 'Done today ✓' : '—';
+        if (mode === 'daily') return dailyDone ? 'Done today ✓' : '—';
         const v = getBest(mode, diff, time);
         if (v === null) return '—';
         return mode === 'sprint' ? v + 's' : String(v);
@@ -93,17 +169,9 @@ const App = (() => {
     // ── Auth ──────────────────────────────────────────────────────────────────
 
     function initAuth() {
-        DB.onAuthChange(async (event, user) => {
-            currentUser = user;
-            if (user) {
-                const profile = await DB.getProfile(user.id);
-                currentUsername = profile?.username ?? user.email.split('@')[0];
-                updateStreakDisplay(profile?.current_streak ?? 0);
-            } else {
-                currentUsername = null;
-                updateStreakDisplay(0);
-            }
-            updateUserBar();
+        DB.onAuthChange((event, user) => {
+            if (event === 'TOKEN_REFRESHED') return;
+            loadUser(user);
         });
 
         document.querySelectorAll('.modal-tab').forEach(tab => {
@@ -138,15 +206,24 @@ const App = (() => {
             const errEl    = document.getElementById('signup-error');
             errEl.textContent = '';
             errEl.style.color = '';
-            if (!username || username.length < 3) {
-                errEl.textContent = 'Username must be at least 3 characters.';
+            if (!/^[A-Za-z0-9_]{3,20}$/.test(username)) {
+                errEl.textContent = 'Username: 3–20 characters, only letters, numbers and _.';
                 return;
             }
             try {
                 setLoading('signup-btn', true);
-                await DB.signUp(email, pass, username);
-                errEl.style.color = 'var(--green)';
-                errEl.textContent = 'Account created! You can now sign in.';
+                if (!(await DB.isUsernameAvailable(username))) {
+                    errEl.textContent = 'That username is already taken.';
+                    return;
+                }
+                const data = await DB.signUp(email, pass, username);
+                track('signup');
+                if (data.session) {
+                    closeAuthModal();
+                } else {
+                    errEl.style.color = 'var(--green)';
+                    errEl.textContent = 'Account created! Check your email to confirm, then sign in.';
+                }
             } catch (e) {
                 errEl.textContent = e.message;
             } finally {
@@ -154,11 +231,31 @@ const App = (() => {
             }
         });
 
-        document.getElementById('auth-close').addEventListener('click', closeAuthModal);
+        document.getElementById('auth-close').addEventListener('click', () => {
+            track('guest_continue');
+            closeAuthModal();
+        });
         document.getElementById('sign-in-menu-btn').addEventListener('click', openAuthModal);
         document.getElementById('sign-out-btn').addEventListener('click', async () => {
             await DB.signOut();
         });
+    }
+
+    async function loadUser(user) {
+        currentUser = user;
+        if (user) {
+            const profile = await DB.getProfile(user.id);
+            currentUsername = profile?.username ?? user.email.split('@')[0];
+            currentXP       = profile?.total_xp ?? 0;
+            updateStreakDisplay(profile?.current_streak ?? 0);
+            dailyDone = await DB.hasUserCompletedDaily(user.id, Daily.getTodayISO());
+        } else {
+            currentUsername = null;
+            currentXP       = 0;
+            loadGuestDaily();
+        }
+        updateUserBar();
+        updateDailyButton();
     }
 
     function openAuthModal() {
@@ -173,76 +270,189 @@ const App = (() => {
         document.getElementById('user-guest').classList.toggle('hidden', !!currentUser);
         document.getElementById('user-loggedin').classList.toggle('hidden', !currentUser);
         if (currentUser) document.getElementById('user-display-name').textContent = currentUsername;
-        updateRankBadge(getTotalXP());
+        updateRankBadge(currentXP);
         refreshBest();
     }
 
     function updateStreakDisplay(streak) {
+        currentStreak = streak;
         document.getElementById('streak-count').textContent = streak;
-        document.getElementById('streak-badge').style.display = streak > 0 ? 'inline-flex' : 'none';
+        document.getElementById('streak-noun').textContent  = streak === 1 ? 'daily' : 'dailies';
+        document.getElementById('streak-badge').classList.toggle('hidden', !(streak > 0));
+    }
+
+    // Guests: daily state and streak live in this browser
+    function loadGuestDaily() {
+        dailyDone = Daily.guestDone();
+        updateStreakDisplay(Daily.guestStreak());
     }
 
     function setLoading(btnId, loading) {
         const btn = document.getElementById(btnId);
         btn.disabled = loading;
-        btn.textContent = loading ? '...' : (btnId === 'signin-btn' ? 'SIGN IN' : 'CREATE ACCOUNT');
+        btn.textContent = loading ? '...' : (btnId === 'signin-btn' ? 'Sign in' : 'Create account');
     }
 
     // ── Menu ──────────────────────────────────────────────────────────────────
 
     function initMenu() {
+        loadPrefs();
+
         document.querySelectorAll('.mode-btn').forEach(btn => {
             btn.addEventListener('click', () => {
-                if (btn.id === 'daily-mode-btn'     && Daily.hasCompletedToday()) return;
                 if (btn.id === 'community-mode-btn' && !DB.isConfigured) {
                     alert('Community mode needs Supabase configured in js/config.js.');
                     return;
                 }
-                document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
-                btn.classList.add('active');
                 settings.mode = btn.dataset.mode;
-                updateTimeSectionVisibility();
-                refreshBest();
+                savePrefs();
+                refreshMenu();
             });
         });
 
         document.querySelectorAll('[data-diff]').forEach(btn => {
             btn.addEventListener('click', () => {
-                document.querySelectorAll('[data-diff]').forEach(b => b.classList.remove('active'));
-                btn.classList.add('active');
                 settings.difficulty = btn.dataset.diff;
-                refreshBest();
+                savePrefs();
+                refreshMenu();
             });
         });
 
         document.querySelectorAll('[data-time]').forEach(btn => {
             btn.addEventListener('click', () => {
-                document.querySelectorAll('[data-time]').forEach(b => b.classList.remove('active'));
-                btn.classList.add('active');
                 settings.timeLimit = parseInt(btn.dataset.time, 10);
-                refreshBest();
+                savePrefs();
+                refreshMenu();
             });
         });
 
         document.getElementById('start-btn').addEventListener('click', startGame);
+        document.getElementById('play-teaser').textContent = teaserQuestion();
+        initSoundToggles();
+        document.getElementById('daily-mode-btn').addEventListener('click', startDaily);
+
+        // Back on the menu after a daily: Play uses the remembered settings again
+        document.addEventListener('screenchange', e => {
+            if (e.detail !== 'menu') return;
+            loadPrefs();
+            refreshMenu();
+        });
         document.getElementById('leaderboard-btn').addEventListener('click', showLeaderboard);
         document.getElementById('history-btn').addEventListener('click', showHistory);
-        document.getElementById('notif-btn').addEventListener('click', requestNotificationPermission);
+        const notifBtn = document.getElementById('notif-btn');
+        notifBtn.classList.toggle('hidden', !PUSH_REMINDERS);
+        if (PUSH_REMINDERS) notifBtn.addEventListener('click', requestNotificationPermission);
 
         // Daily mode setup
         document.getElementById('daily-date-label').textContent = Daily.getDateLabel();
         updateDailyButton();
+        // Keep the "next daily" countdown and the today strip current while the menu is open
+        setInterval(() => {
+            if (!document.getElementById('screen-menu').classList.contains('active')) return;
+            document.getElementById('daily-date-label').textContent = Daily.getDateLabel();
+            updateDailyButton();
+            refreshToday();
+        }, 60000);
+    }
+
+    // A taste of the game on the Play card, new on every load: "47 × 8 = ?"
+    function teaserQuestion() {
+        const pick = (lo, hi) => lo + Math.floor(Math.random() * (hi - lo + 1));
+        let a;
+        do { a = pick(12, 49); } while (a % 10 === 0);
+        return `${a} × ${pick(3, 9)} = ?`;
     }
 
     function updateDailyButton() {
-        const done    = Daily.hasCompletedToday();
+        const done    = dailyDone;
         const badge   = document.getElementById('daily-done-badge');
         const desc    = document.getElementById('daily-mode-desc');
         const btn     = document.getElementById('daily-mode-btn');
         badge.classList.toggle('hidden', !done);
-        btn.style.opacity = done ? '0.5' : '1';
-        btn.style.cursor  = done ? 'default' : 'pointer';
-        desc.textContent  = done ? 'Come back tomorrow!' : '20 questions · same for everyone';
+        btn.classList.toggle('done', done);
+        desc.textContent  = done          ? `Done ✓ Next one in ${timeToNextDaily()}`
+                          : !currentUser  ? '20 questions, a new set every day'
+                          :                 '20 questions, the same for everyone';
+    }
+
+    // The daily resets at 00:00 UTC
+    function timeToNextDaily() {
+        const now  = new Date();
+        const next = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1);
+        const mins = Math.max(1, Math.ceil((next - now) / 60000));
+        const h = Math.floor(mins / 60), m = mins % 60;
+        return h > 0 ? `${h} h ${m} min` : `${m} min`;
+    }
+
+    // The daily starts straight from its card and doesn't change the remembered mode
+    function startDaily() {
+        if (dailyDone || countdownActive) return;
+        settings.mode = 'daily';
+        startGame();
+    }
+
+    // ── Sound switch (menu and game screen) ───────────────────────────────────
+
+    // Speaker icon; the state is in aria-pressed, the name stays "Sound"
+    const SPEAKER = '<path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z" fill="currentColor"/>';
+    const ICON_ON  = `<svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" focusable="false">${SPEAKER}` +
+                     '<path d="M15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>';
+    const ICON_OFF = `<svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" focusable="false">${SPEAKER}` +
+                     '<path d="M16 9.5l5 5m0-5l-5 5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>';
+
+    function initSoundToggles() {
+        const buttons = document.querySelectorAll('.sound-toggle');
+        const render  = () => buttons.forEach(b => {
+            b.innerHTML = Sound.isEnabled() ? ICON_ON : ICON_OFF;
+            b.setAttribute('aria-pressed', String(Sound.isEnabled()));
+            b.title = Sound.isEnabled() ? 'Sound on' : 'Sound off';
+        });
+        buttons.forEach(b => b.addEventListener('click', () => { Sound.toggle(); render(); }));
+        render();
+    }
+
+    // ── Remembered settings ───────────────────────────────────────────────────
+
+    const PREFS_KEY  = 'quantquiz_prefs';
+    const MENU_MODES = ['classic', 'sprint', 'zen', 'community'];
+
+    function loadPrefs() {
+        try {
+            const p = JSON.parse(localStorage.getItem(PREFS_KEY) || '{}');
+            settings.mode       = MENU_MODES.includes(p.mode) ? p.mode : 'classic';
+            if (['easy', 'medium', 'hard'].includes(p.difficulty)) settings.difficulty = p.difficulty;
+            if ([30, 60, 90].includes(p.timeLimit))                settings.timeLimit  = p.timeLimit;
+        } catch {
+            settings.mode = 'classic';
+        }
+    }
+
+    function savePrefs() {
+        try {
+            localStorage.setItem(PREFS_KEY, JSON.stringify({
+                mode: settings.mode, difficulty: settings.difficulty, timeLimit: settings.timeLimit,
+            }));
+        } catch { /* private mode: settings just aren't remembered */ }
+    }
+
+    function describeSettings() {
+        const diff = settings.difficulty;
+        switch (settings.mode) {
+            case 'sprint':    return `Sprint, 10 questions, ${diff}`;
+            case 'zen':       return `Zen, no clock, ${diff}`;
+            case 'community': return 'Community problems';
+            default:          return `Classic, ${settings.timeLimit} seconds, ${diff}`;
+        }
+    }
+
+    function refreshMenu() {
+        document.querySelectorAll('.mode-btn').forEach(b => b.classList.toggle('active', b.dataset.mode === settings.mode));
+        document.querySelectorAll('[data-diff]').forEach(b => b.classList.toggle('active', b.dataset.diff === settings.difficulty));
+        document.querySelectorAll('[data-time]').forEach(b => b.classList.toggle('active', parseInt(b.dataset.time, 10) === settings.timeLimit));
+        document.getElementById('play-config').textContent = describeSettings();
+        updateTimeSectionVisibility();
+        refreshBest();
+        refreshToday();
     }
 
     function updateTimeSectionVisibility() {
@@ -254,30 +464,6 @@ const App = (() => {
 
     function refreshBest() {
         UI.updateBestDisplay(formatBest(settings.mode, settings.difficulty, settings.timeLimit));
-    }
-
-    // ── Themes ───────────────────────────────────────────────────────────────
-
-    function applyTheme(theme) {
-        [...document.body.classList]
-            .filter(c => c.startsWith('theme-'))
-            .forEach(c => document.body.classList.remove(c));
-        if (theme !== 'void') document.body.classList.add(`theme-${theme}`);
-        document.querySelectorAll('.theme-dot').forEach(btn =>
-            btn.classList.toggle('active', btn.dataset.theme === theme));
-        ThemeBG.apply(theme);
-    }
-
-    function initThemes() {
-        ThemeBG.init();
-        const saved = localStorage.getItem('mathblitz_theme') || 'void';
-        applyTheme(saved);
-        document.querySelectorAll('.theme-dot').forEach(btn => {
-            btn.addEventListener('click', () => {
-                applyTheme(btn.dataset.theme);
-                localStorage.setItem('mathblitz_theme', btn.dataset.theme);
-            });
-        });
     }
 
     // ── Push notifications ────────────────────────────────────────────────────
@@ -300,11 +486,7 @@ const App = (() => {
         if (permission === 'granted') {
             btn.textContent = '🔔✓';
             btn.style.color = 'var(--green)';
-            // Show a test notification
-            new Notification('MathBlitz', {
-                body: "Notifications enabled! We'll remind you about the daily challenge.",
-                icon: '/icon.png',
-            });
+            new Notification('QuantQuiz', { body: 'Notifications are on.', icon: '/icons/icon-192.png' });
         } else {
             btn.textContent = '🔕';
         }
@@ -350,21 +532,62 @@ const App = (() => {
 
     async function startGame() {
         if (countdownActive) return;
-        if (settings.mode === 'daily' && Daily.hasCompletedToday()) return;
+        if (settings.mode === 'daily' && dailyDone) return;
 
         countdownActive = true;
         stopTimers();
+        session = null;
         UI.showScreen('game');
         await runCountdown();
 
+        // Questions are fetched after the countdown so the server clock starts with the game
         const gameSettings = { ...settings };
-        if (settings.mode === 'daily') {
-            gameSettings.predefinedQuestions = Daily.generateQuestions();
-        } else if (settings.mode === 'community') {
-            const qs = await DB.getCommunityQuestions(20);
-            gameSettings.predefinedQuestions = qs.length ? qs : Daily.generateQuestions();
+        try {
+            if (settings.mode === 'daily' && !currentUser) {
+                // Guests: local question set, the attempt is used up on start
+                Daily.markGuestStarted();
+                dailyDone = true;
+                updateDailyButton();
+                gameSettings.predefinedQuestions = Daily.guestQuestions();
+            } else if (settings.mode === 'daily') {
+                session   = await DB.startDaily();
+                dailyDone = true;
+                updateDailyButton();
+                gameSettings.predefinedQuestions = session.questions;
+            } else if (settings.mode === 'community') {
+                const qs = await DB.getCommunityQuestions(20);
+                if (!qs.length) {
+                    alert('No community problems yet. Check back soon!');
+                    UI.showScreen('menu');
+                    return;
+                }
+                gameSettings.predefinedQuestions = qs;
+            } else if ((settings.mode === 'classic' || settings.mode === 'sprint') && currentUser) {
+                session = await DB.startGame(settings.mode, settings.difficulty, settings.timeLimit);
+                gameSettings.predefinedQuestions = session.questions;
+            }
+        } catch (e) {
+            if (settings.mode === 'daily') {
+                if (String(e.message).includes('daily_already_played')) {
+                    dailyDone = true;
+                    updateDailyButton();
+                    alert("You've already played today's daily challenge.");
+                } else {
+                    alert('Could not start the daily challenge. Check your connection and try again.');
+                }
+                UI.showScreen('menu');
+                return;
+            }
+            session = null;   // play locally; finishGame reports that the score wasn't saved
         }
 
+        Sound.gameStart();
+        UI.showCombo(1);
+        track('game_start', {
+            mode:       settings.mode,
+            difficulty: settings.mode === 'daily' ? 'mixed' : settings.difficulty,
+            time:       settings.mode === 'classic' ? settings.timeLimit : 0,
+        });
         const state = Game.start(gameSettings);
         UI.updateHUD(state);
         UI.showQuestion(Game.getCurrentQuestion());
@@ -390,6 +613,7 @@ const App = (() => {
             const result = Game.tick();
             if (!result) return;
             UI.updateTimer(result.timeLeft, totalTime);
+            if (result.timeLeft > 0 && result.timeLeft <= 5) Sound.tick(result.timeLeft);
             if (result.gameOver) { stopTimers(); finishGame(result.state); }
         }, 1000);
     }
@@ -412,7 +636,7 @@ const App = (() => {
                 if (result.state.streak > 0 && result.state.streak % 3 === 0) {
                     Sound.streakMilestone(Math.floor(result.state.streak / 3));
                 } else {
-                    Sound.correct();
+                    Sound.correct(result.state.streak);
                 }
             } else {
                 Sound.wrong();
@@ -436,96 +660,114 @@ const App = (() => {
         }
 
         input.addEventListener('keydown',  e => { if (e.key === 'Enter') handleSubmit(); });
+        [input, document.getElementById('duel-input')].forEach(el => el.addEventListener('input', () => {
+            el.classList.remove('typed');
+            void el.offsetWidth;
+            el.classList.add('typed');
+        }));
         submit.addEventListener('click', handleSubmit);
     }
 
     // ── Game end ──────────────────────────────────────────────────────────────
 
+    const REJECT_MESSAGES = {
+        implausible_speed:  'Score not saved: answers came in faster than humanly possible.',
+        session_expired:    'Score not saved: the game took too long to submit.',
+        finished_too_early: 'Score not saved: the game ended too early.',
+        incomplete:         'Score not saved: not all questions were answered.',
+        too_many_answers:   'Score not saved: invalid game data.',
+    };
+
+    function setSaveStatus(text, color = 'muted') {
+        const el = document.getElementById('save-status');
+        el.textContent = text;
+        el.style.color = `var(--${color})`;
+    }
+
     async function finishGame(state) {
-        const elapsed = Game.elapsedSeconds();
+        const elapsed   = Game.elapsedSeconds();
+        const submitBtn = document.getElementById('submit-problem-btn');
 
         // Save to local history (all modes)
         saveGameHistory(state, elapsed);
 
-        // XP tracking (all modes except zen)
-        if (state.mode !== 'zen') {
-            const oldXP  = getTotalXP();
-            const newXP  = addXP(state.score);
-            const oldRank = getRankForXP(oldXP);
-            const newRank = getRankForXP(newXP);
-            if (newRank.name !== oldRank.name) {
-                setTimeout(() => UI.showRankUp(oldRank, newRank), 600);
-            }
-            updateRankBadge(newXP);
-            // Show submit button for Silver+ users
-            document.getElementById('submit-problem-btn').classList.toggle('hidden', !canSubmit(newXP));
-        } else {
-            document.getElementById('submit-problem-btn').classList.add('hidden');
+        // A round only counts (goal, streak, best) once at least one answer was given
+        const answered = state.correct + state.wrong;
+        const counts   = answered >= 1;
+        emptyRound = !counts;
+
+        let isNewBest = false;
+        let prevBest  = null;
+        if (state.mode === 'classic' || state.mode === 'sprint' || state.mode === 'zen') {
+            const bestValue = state.mode === 'sprint' ? parseFloat(elapsed) : state.score;
+            prevBest  = getBest(state.mode, state.difficulty, settings.timeLimit);
+            if (counts) isNewBest = setBest(state.mode, state.difficulty, settings.timeLimit, bestValue);
+            refreshBest();
         }
+        const progress = counts ? recordRound() : null;
+        if (counts && state.mode === 'daily' && !currentUser) updateStreakDisplay(Daily.recordGuestDaily());
+        lastResult = { state, elapsed };
 
-        // Daily mode — special handling
-        if (state.mode === 'daily') {
-            Daily.markCompletedToday();
-            updateDailyButton();
-            const saveEl = document.getElementById('save-status');
-            UI.showResults(state, elapsed, false);
+        // A real new best (not the very first round) gets the fanfare and confetti
+        const celebrate = isNewBest && prevBest !== null && state.score > 0;
+        if (celebrate) Sound.newBest(); else Sound.gameEnd();
+        UI.showResults(state, elapsed, { isNewBest, prevBest, celebrate });
+        if (progress?.goalJustMet) setTimeout(() => Sound.goal(), celebrate ? 1100 : 600);
+        refreshToday();
+        updateResultButtons(state.mode, isNewBest ? null : prevBest);
+        prepareShareCard();
 
-            if (currentUser) {
-                saveEl.textContent = 'Saving daily score...';
-                saveEl.style.color = 'var(--muted)';
-                try {
-                    await DB.saveDailyScore(currentUser.id, state, elapsed);
-                    saveEl.textContent = 'Daily score saved! ✓';
-                    saveEl.style.color = 'var(--green)';
-                } catch {
-                    saveEl.textContent = 'Could not save score.';
-                    saveEl.style.color = 'var(--red)';
-                }
-            } else if (DB.isConfigured) {
-                saveEl.textContent = 'Sign in to appear on the daily leaderboard';
-                saveEl.style.color = 'var(--muted)';
-            }
+        track('game_end', {
+            mode:     state.mode,
+            score:    state.score,
+            accuracy: answered ? Math.round((state.correct / answered) * 100) : 0,
+        });
+        if (state.mode === 'daily') track('daily_played');
+        submitBtn.classList.toggle('hidden', !(currentUser && canSubmit(currentXP)));
+        setSaveStatus('');
 
-            if (currentUser) {
-                const streak = await DB.updateStreak(currentUser.id);
-                if (streak) updateStreakDisplay(streak.current);
-            }
+        if (!session) {
+            // Zen and community are practice modes: no leaderboard, no XP
+            if (state.mode === 'zen' || state.mode === 'community') return;
+            if (currentUser)          setSaveStatus('Offline: score not saved.', 'red');
+            else if (state.mode === 'daily') setSaveStatus('Sign in to save your streak and rank.');
+            else if (DB.isConfigured) setSaveStatus('Sign in to compete on the leaderboard');
             return;
         }
 
-        // Community mode — show results, no leaderboard save
-        if (state.mode === 'community') {
-            UI.showResults(state, elapsed, false);
-            document.getElementById('save-status').textContent = '';
-            return;
-        }
+        const { sessionId } = session;
+        session = null;
+        setSaveStatus(state.mode === 'daily' ? 'Saving daily score...' : 'Saving score...');
 
-        // Regular modes
-        const bestValue = state.mode === 'sprint' ? parseFloat(elapsed) : state.score;
-        const isNewBest = setBest(state.mode, state.difficulty, settings.timeLimit, bestValue);
-        refreshBest();
-        UI.showResults(state, elapsed, isNewBest);
-
-        const saveEl = document.getElementById('save-status');
-        if (currentUser) {
-            saveEl.textContent = 'Saving score...';
-            saveEl.style.color = 'var(--muted)';
-            try {
-                await DB.saveScore(currentUser.id, state, elapsed, settings);
-                await DB.updateStreak(currentUser.id);
-                const profile = await DB.getProfile(currentUser.id);
-                updateStreakDisplay(profile?.current_streak ?? 0);
-                saveEl.textContent = 'Score saved to leaderboard ✓';
-                saveEl.style.color = 'var(--green)';
-            } catch {
-                saveEl.textContent = 'Could not save score.';
-                saveEl.style.color = 'var(--red)';
+        try {
+            const res = await DB.submitGame(sessionId, state.answers);
+            if (!res.ok) {
+                setSaveStatus(REJECT_MESSAGES[res.reason] ?? 'Score not saved.', 'red');
+                return;
             }
-        } else if (DB.isConfigured) {
-            saveEl.textContent = 'Sign in to compete on the leaderboard';
-            saveEl.style.color = 'var(--muted)';
-        } else {
-            saveEl.textContent = '';
+
+            const oldRank = getRankForXP(res.old_xp);
+            const newRank = getRankForXP(res.total_xp);
+            currentXP = res.total_xp;
+            updateRankBadge(currentXP);
+            if (newRank.name !== oldRank.name) setTimeout(() => UI.showRankUp(oldRank, newRank), 600);
+            updateStreakDisplay(res.current_streak);
+            submitBtn.classList.toggle('hidden', !canSubmit(currentXP));
+
+            if (state.mode === 'sprint') {
+                // Show the server-measured time, which is what the leaderboard uses
+                document.getElementById('res-hero').textContent = res.elapsed + 's';
+                document.getElementById('res-time').textContent = res.elapsed + 's';
+                lastResult.elapsed = String(res.elapsed);
+            }
+
+            prepareShareCard();
+
+            if (state.mode === 'daily')                           setSaveStatus('Daily score saved! ✓', 'green');
+            else if (state.mode === 'sprint' && res.correct < 10) setSaveStatus('Saved ✓ · Sprint leaderboard needs 10/10 correct', 'green');
+            else                                                  setSaveStatus('Score saved to leaderboard ✓', 'green');
+        } catch {
+            setSaveStatus('Could not save score.', 'red');
         }
     }
 
@@ -536,7 +778,8 @@ const App = (() => {
             alert('Fill in js/config.js with your Supabase credentials first.');
             return;
         }
-        lb.mode = settings.mode === 'daily' ? 'daily' : settings.mode;
+        const validLbModes = ['global', 'classic', 'sprint', 'daily'];
+        lb.mode = validLbModes.includes(settings.mode) ? settings.mode : 'classic';
         lb.difficulty = settings.difficulty;
         lb.timeLimit  = settings.timeLimit;
         syncLbFilterUI();
@@ -552,7 +795,7 @@ const App = (() => {
         document.querySelectorAll('[data-lb-time]').forEach(b =>
             b.classList.toggle('active', parseInt(b.dataset.lbTime) === lb.timeLimit));
         const showTime = lb.mode === 'classic';
-        const showDiff = lb.mode !== 'daily';
+        const showDiff = lb.mode !== 'daily' && lb.mode !== 'global';
         document.getElementById('lb-time-section').classList.toggle('hidden', !showTime);
         document.querySelectorAll('[data-lb-diff]').forEach(b =>
             b.closest('.section')?.classList.toggle('hidden', !showDiff));
@@ -595,9 +838,14 @@ const App = (() => {
         list.innerHTML = '<p class="lb-empty">Loading...</p>';
 
         try {
-            const rows = lb.mode === 'daily'
-                ? await DB.getDailyLeaderboard(Daily.getTodayISO())
-                : await DB.getLeaderboard(lb.mode, lb.difficulty, lb.timeLimit);
+            let rows;
+            if (lb.mode === 'global') {
+                rows = await DB.getGlobalLeaderboard();
+            } else if (lb.mode === 'daily') {
+                rows = await DB.getDailyLeaderboard(Daily.getTodayISO());
+            } else {
+                rows = await DB.getLeaderboard(lb.mode, lb.difficulty, lb.timeLimit);
+            }
 
             if (rows.length === 0) {
                 list.innerHTML = '<p class="lb-empty">No scores yet. Be the first!</p>';
@@ -605,13 +853,18 @@ const App = (() => {
             }
 
             list.innerHTML = rows.map((row, i) => {
-                const username = row.profiles?.username ?? 'anonymous';
-                const rank     = i + 1;
-                const isMe     = currentUsername && username === currentUsername;
-                const medal    = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : `#${rank}`;
+                const username  = row.username ?? 'anonymous';
+                const pos       = i + 1;
+                const isMe      = currentUsername && username === currentUsername;
+                const medal     = pos === 1 ? '🥇' : pos === 2 ? '🥈' : pos === 3 ? '🥉' : `#${pos}`;
 
-                let primary, secondary;
-                if (lb.mode === 'sprint') {
+                let primary, secondary, rankBadge = '';
+                if (lb.mode === 'global') {
+                    const r  = getRankForXP(row.total_xp ?? 0);
+                    rankBadge = `<span class="rank-badge ${r.cls}" style="font-size:0.62rem;margin-left:0.3rem">${r.icon} ${r.name}</span>`;
+                    primary   = (row.total_xp ?? 0) + ' XP';
+                    secondary = `streak ${row.current_streak ?? 0} days`;
+                } else if (lb.mode === 'sprint') {
                     primary   = row.elapsed_seconds.toFixed(2) + 's';
                     secondary = `${row.correct}/10 correct`;
                 } else if (lb.mode === 'daily') {
@@ -625,35 +878,80 @@ const App = (() => {
                 return `
                     <div class="lb-row ${isMe ? 'lb-row-me' : ''}">
                         <span class="lb-rank">${medal}</span>
-                        <span class="lb-name">${username}${isMe ? ' (you)' : ''}</span>
+                        <span class="lb-name">
+                            <button type="button" class="lb-name-link" data-username="${escapeHtml(username)}">${escapeHtml(username)}${isMe ? ' (you)' : ''}</button>${rankBadge}
+                        </span>
                         <div class="lb-scores">
                             <span class="lb-primary">${primary}</span>
                             <span class="lb-secondary">${secondary}</span>
                         </div>
                     </div>`;
             }).join('');
+
+            list.querySelectorAll('.lb-name-link').forEach(el => {
+                el.addEventListener('click', () => showProfile(el.dataset.username));
+            });
         } catch (e) {
-            list.innerHTML = `<p class="lb-empty" style="color:var(--red)">Failed to load: ${e.message}</p>`;
+            list.innerHTML = `<p class="lb-empty" style="color:var(--red)">Failed to load: ${escapeHtml(e.message)}</p>`;
         }
     }
 
     // ── Duel ─────────────────────────────────────────────────────────────────
 
     let _duelPlayerIdx = 0;
+    let _duelDuration  = 60;
+    let _duelVsBot     = false;
+    let _duelAwaiting  = false;   // answer sent, waiting for the server's verdict
+    let _duelLastTick  = 0;
+    let _duelWatchdog  = null;
 
     function showDuelPhase(phase) {
         document.getElementById('duel-searching').classList.toggle('hidden', phase !== 'searching');
         document.getElementById('duel-active').classList.toggle('hidden',    phase !== 'active');
         document.getElementById('duel-result').classList.toggle('hidden',    phase !== 'result');
+        if (phase !== 'active') stopDuelWatchdog();
+        if (phase === 'result' && duelScreenActive()) UI.focusHeading(document.getElementById('screen-duel'));
+    }
+
+    function duelScreenActive() {
+        return document.getElementById('screen-duel').classList.contains('active');
+    }
+
+    function currentDuelPhase() {
+        return ['searching', 'active', 'result'].find(p =>
+            !document.getElementById(`duel-${p}`).classList.contains('hidden'));
+    }
+
+    function showDuelProblem(icon, title) {
+        showDuelPhase('result');
+        document.getElementById('duel-result-icon').textContent  = icon;
+        document.getElementById('duel-result-title').textContent = title;
+    }
+
+    // No timer tick for a while = the connection died without a disconnect event
+    function startDuelWatchdog() {
+        stopDuelWatchdog();
+        _duelLastTick = Date.now();
+        _duelWatchdog = setInterval(() => {
+            if (Date.now() - _duelLastTick < 6000) return;
+            DuelClient.disconnect();
+            showDuelProblem('⚠️', 'Connection lost');
+        }, 1000);
+    }
+
+    function stopDuelWatchdog() {
+        if (_duelWatchdog) { clearInterval(_duelWatchdog); _duelWatchdog = null; }
     }
 
     function initDuel() {
         document.getElementById('duel-btn').addEventListener('click', startDuelSearch);
         document.getElementById('cancel-duel-btn').addEventListener('click', () => {
             DuelClient.cancelMatch();
+            DuelClient.disconnect();   // also leaves a match that formed at the same moment
             UI.showScreen('menu');
         });
         document.getElementById('forfeit-btn').addEventListener('click', () => {
+            if (!confirm('Give up this duel?')) return;
             DuelClient.forfeit();
             UI.showScreen('menu');
         });
@@ -662,14 +960,23 @@ const App = (() => {
             DuelClient.disconnect();
             UI.showScreen('menu');
         });
+        document.getElementById('challenge-btn').addEventListener('click', createChallenge);
+
+        // Online-only parts: friend challenges and emoji reactions (the bot doesn't react)
+        const online = DuelClient.isOnline();
+        document.getElementById('duel-btn').textContent = online ? 'Duel a player' : 'Duel the bot';
+        document.getElementById('challenge-btn').classList.toggle('hidden', !online);
+        document.querySelector('.reaction-bar').classList.toggle('hidden', !online);
 
         // Duel answer input
         const duelInput  = document.getElementById('duel-input');
         const duelSubmit = document.getElementById('duel-submit-btn');
 
         function handleDuelSubmit() {
+            if (_duelAwaiting) return;   // a double Enter would be graded against the next question
             const val = parseInt(duelInput.value, 10);
             if (isNaN(val)) return;
+            _duelAwaiting = true;
             DuelClient.submitAnswer(val);
             duelInput.value = '';
         }
@@ -679,27 +986,59 @@ const App = (() => {
 
         // Socket event handlers
         DuelClient.on('connect_error', () => {
+            DuelClient.disconnect();
             UI.showScreen('menu');
-            alert('Could not connect to the duel server.\n\nMake sure it\'s running:\n\n  cd C:\\Users\\hammi\\mental-math\\server\n  node server.js');
+            alert('Could not connect to the duel server. Please try again in a moment.');
+        });
+
+        DuelClient.on('duel_error', ({ message }) => {
+            DuelClient.disconnect();
+            UI.showScreen('menu');
+            alert(message);
         });
 
         DuelClient.on('searching', () => {
+            setSearchText('Finding Opponent', 'Waiting for another player...');
             document.getElementById('duel-pre-search').classList.remove('hidden');
             document.getElementById('duel-pre-countdown').classList.add('hidden');
         });
 
-        DuelClient.on('matched', ({ opponent, playerIdx, firstQuestion }) => {
+        DuelClient.on('challenge_created', async ({ code }) => {
+            const url = new URL(location.origin + location.pathname);
+            url.searchParams.set('duel', code);
+            url.searchParams.set('utm_source', 'share');
+            url.searchParams.set('utm_campaign', 'duel');
+            _challengeLink = url.toString();
+
+            setSearchText('Waiting for your friend', 'Send them the link. It works without an account and stays valid for 10 minutes.');
+            document.getElementById('challenge-btn').textContent = '🔗 Share invite link';
+            // Not triggered by a tap, so mobile browsers may refuse; then the button does it
+            await shareChallengeLink({ fromTap: false });
+        });
+
+        DuelClient.on('matched', ({ you, opponent, opponentIsBot, offline, playerIdx, firstQuestion, duration }) => {
+            track('duel_matched', { opponent: opponentIsBot ? 'bot' : 'human' });
             _duelPlayerIdx = playerIdx;
-            document.getElementById('duel-my-name').textContent  = currentUsername || 'You';
-            document.getElementById('duel-opp-name').textContent = opponent;
-            document.getElementById('dr-my-name').textContent    = currentUsername || 'You';
-            document.getElementById('dr-opp-name').textContent   = opponent;
-            document.getElementById('duel-opp-found').textContent = opponent;
+            _duelDuration  = duration || 60;
+            _duelVsBot     = !!opponentIsBot;
+
+            const myName  = you || currentUsername || 'You';
+            const oppName = opponentIsBot ? `🤖 ${opponent}` : opponent;
+            document.getElementById('duel-my-name').textContent  = myName;
+            document.getElementById('duel-opp-name').textContent = oppName;
+            document.getElementById('dr-my-name').textContent    = myName;
+            document.getElementById('dr-opp-name').textContent   = oppName;
+            document.getElementById('duel-opp-found').textContent = oppName;
+            document.getElementById('duel-found-label').textContent =
+                offline       ? 'Online duels are coming soon. Warm up against our bot!' :
+                opponentIsBot ? 'Nobody online right now. Warm up against a bot!' :
+                                'Opponent found!';
             document.getElementById('duel-question').textContent  = firstQuestion.display;
 
             // Switch to countdown sub-phase
             document.getElementById('duel-pre-search').classList.add('hidden');
             document.getElementById('duel-pre-countdown').classList.remove('hidden');
+            UI.focusHeading(document.getElementById('screen-duel'));
         });
 
         DuelClient.on('countdown', n => {
@@ -712,10 +1051,12 @@ const App = (() => {
             // Reset HUD
             ['duel-my-score','duel-opp-score'].forEach(id => document.getElementById(id).textContent = '0');
             ['duel-my-correct','duel-opp-correct'].forEach(id => document.getElementById(id).textContent = '0 ✓');
-            document.getElementById('duel-timer').textContent = '60';
+            document.getElementById('duel-timer').textContent = _duelDuration;
             document.getElementById('duel-timer').style.color = '';
             document.getElementById('duel-progress').style.width = '100%';
+            _duelAwaiting = false;
             showDuelPhase('active');
+            startDuelWatchdog();
             document.getElementById('duel-input').focus();
         });
 
@@ -725,14 +1066,15 @@ const App = (() => {
 
             document.getElementById('duel-my-score').textContent = score;
 
+            UI.flashCard(document.querySelector('#duel-active .question-card'), correct);
             if (correct) {
                 const bonus = multiplier > 1 ? ` ×${multiplier}` : '';
-                fb.textContent = `+${pointsEarned}${bonus}`;
+                fb.textContent = `✓ Correct +${pointsEarned}${bonus}`;
                 fb.className   = 'feedback correct';
                 input.classList.add('correct');
                 Sound.correct();
             } else {
-                fb.textContent = `✗ → ${correctAnswer}`;
+                fb.textContent = `✗ Wrong, it's ${correctAnswer}`;
                 fb.className   = 'feedback wrong';
                 input.classList.add('wrong');
                 Sound.wrong();
@@ -740,10 +1082,10 @@ const App = (() => {
 
             setTimeout(() => {
                 if (nextQuestion) document.getElementById('duel-question').textContent = nextQuestion.display;
-                input.value     = '';
                 input.className = '';
-                fb.textContent  = '\u00A0';
+                fb.textContent  = ' ';
                 fb.className    = 'feedback';
+                _duelAwaiting   = false;
                 input.focus();
             }, 160);
         });
@@ -758,13 +1100,19 @@ const App = (() => {
         });
 
         DuelClient.on('timer_tick', ({ timeLeft }) => {
+            _duelLastTick = Date.now();
             const el = document.getElementById('duel-timer');
             el.textContent = timeLeft;
-            el.style.color = timeLeft <= 10 ? 'var(--red)' : timeLeft <= 20 ? 'var(--yellow)' : '';
-            document.getElementById('duel-progress').style.width = `${(timeLeft / 60) * 100}%`;
+            el.style.color = timeLeft <= 20 ? 'var(--yellow)' : '';
+            document.getElementById('duel-progress').style.width = `${(timeLeft / _duelDuration) * 100}%`;
         });
 
         DuelClient.on('duel_end', ({ winner, reason, players }) => {
+            track('duel_finished', {
+                result: winner === -1 ? 'draw' : winner === _duelPlayerIdx ? 'win' : 'loss',
+                reason,
+                opponent: _duelVsBot ? 'bot' : 'human',
+            });
             const me  = players[_duelPlayerIdx];
             const opp = players[1 - _duelPlayerIdx];
 
@@ -775,49 +1123,300 @@ const App = (() => {
 
             const isTie  = winner === -1;
             const isWin  = winner === _duelPlayerIdx;
-            const isDisc = reason === 'disconnect' || reason === 'forfeit';
+            const oppLeft = isWin && (reason === 'disconnect' || reason === 'forfeit');
 
             document.getElementById('duel-result-icon').textContent  = isTie ? '🤝' : isWin ? '🏆' : '💀';
             document.getElementById('duel-result-title').textContent =
-                isTie ? 'Draw!' : isWin ? 'Victory!' :
-                (isDisc ? 'Opponent left' : 'Defeat');
+                isTie ? 'Draw!' : oppLeft ? 'Opponent left. You win!' : isWin ? 'Victory!' : 'Defeat';
 
             showDuelPhase('result');
+            UI.announce(`${document.getElementById('duel-result-title').textContent} ${me.score} to ${opp.score}.`);
+            DuelClient.disconnect();
         });
 
-        DuelClient.on('disconnect', () => {
-            // Only act if we were mid-duel
-            const active = !document.getElementById('duel-active').classList.contains('hidden');
-            if (active) {
-                showDuelPhase('result');
-                document.getElementById('duel-result-icon').textContent  = '⚠️';
-                document.getElementById('duel-result-title').textContent = 'Disconnected';
+        DuelClient.on('disconnect', reason => {
+            if (reason === 'io client disconnect' || !duelScreenActive()) return;   // we left on purpose
+            const phase = currentDuelPhase();
+            if (phase === 'active') {
+                showDuelProblem('⚠️', 'Disconnected');
+            } else if (phase === 'searching') {
+                UI.showScreen('menu');
+                alert('Lost connection to the duel server. Please try again.');
             }
         });
 
-        DuelClient.on('match_cancelled', () => UI.showScreen('menu'));
+        DuelClient.on('match_cancelled', () => {
+            DuelClient.disconnect();
+            if (duelScreenActive()) UI.showScreen('menu');
+        });
+
+        DuelClient.on('reaction', ({ emoji }) => {
+            spawnReaction(emoji);
+        });
+
+        document.querySelectorAll('.reaction-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                DuelClient.sendReaction(btn.dataset.emoji);
+            });
+        });
     }
 
-    function startDuelSearch() {
-        if (!currentUsername) { openAuthModal(); return; }
+    function setSearchText(title, sub) {
+        document.getElementById('duel-search-title').textContent = title;
+        document.getElementById('duel-search-sub').textContent   = sub;
+    }
+
+    function spawnReaction(emoji) {
+        const overlay = document.getElementById('reaction-overlay');
+        const el      = document.createElement('div');
+        el.className  = 'reaction-float';
+        el.textContent = emoji;
+        el.style.left  = `${20 + Math.random() * 60}%`;
+        el.style.top   = `${30 + Math.random() * 30}%`;
+        overlay.appendChild(el);
+        el.addEventListener('animationend', () => el.remove());
+    }
+
+    function enterDuelSearch(title, sub) {
         DuelClient.disconnect(); // clean up any previous connection
+        _challengeLink = null;
         showDuelPhase('searching');
+        setSearchText(title, sub);
+        document.getElementById('challenge-btn').textContent = '🔗 Challenge a friend';
         document.getElementById('duel-pre-search').classList.remove('hidden');
         document.getElementById('duel-pre-countdown').classList.add('hidden');
         UI.showScreen('duel');
-        DuelClient.findMatch(currentUsername);
+    }
+
+    // Guests can duel too; signed-in players are identified by their token
+    async function startDuelSearch() {
+        enterDuelSearch('Finding Opponent', 'Waiting for another player...');
+        track('duel_search_started');
+        DuelClient.findMatch(await DB.getAccessToken(), settings.difficulty);
+    }
+
+    // ── Challenge links ───────────────────────────────────────────────────────
+
+    let _challengeLink = null;
+
+    async function createChallenge() {
+        if (!DuelClient.isOnline()) return;
+        if (_challengeLink) { await shareChallengeLink({ fromTap: true }); return; }
+        DuelClient.createChallenge(await DB.getAccessToken(), settings.difficulty);
+    }
+
+    async function shareChallengeLink({ fromTap }) {
+        if (!_challengeLink) return;
+        const result = await shareOrCopy(
+            `Can you beat me at mental math? ⚔️ Duel me on QuantQuiz: ${_challengeLink}`,
+            { allowPrompt: fromTap },
+        );
+        const sub = document.getElementById('duel-search-sub');
+        if (result === 'copied') {
+            sub.textContent = 'Link copied! Send it to a friend. It works without an account and stays valid for 10 minutes.';
+        } else if (result === 'failed' && !fromTap) {
+            sub.textContent = 'Tap "Share invite link" to send it to a friend. No account needed, valid for 10 minutes.';
+        }
+    }
+
+    // Opened via ?duel=CODE: join the friend's duel right away
+    async function joinChallengeFromUrl() {
+        const params = new URLSearchParams(location.search);
+        const code   = params.get('duel');
+        if (!code) return;
+
+        params.delete('duel');
+        const rest = params.toString();
+        history.replaceState(null, '', location.pathname + (rest ? `?${rest}` : ''));
+
+        if (!DuelClient.isOnline()) {
+            alert('Online duels are coming soon! Until then, tap ⚔️ to duel our bot.');
+            return;
+        }
+
+        enterDuelSearch('Joining duel', 'Connecting to your friend...');
+        track('duel_search_started', { via: 'challenge' });
+        DuelClient.joinChallenge(await DB.getAccessToken(), code.slice(0, 12));
+    }
+
+    // Web Share API with clipboard fallback → 'shared' | 'copied' | 'failed'.
+    // allowPrompt: as a last resort show the text to copy by hand (only after a tap).
+    async function shareOrCopy(text, { allowPrompt = true } = {}) {
+        if (navigator.share) {
+            try {
+                await navigator.share({ text });
+                return 'shared';
+            } catch (e) {
+                if (e?.name === 'AbortError') return 'failed';   // user closed the share sheet
+            }
+        }
+        try {
+            await navigator.clipboard.writeText(text);
+            return 'copied';
+        } catch {
+            if (allowPrompt) prompt('Copy this:', text);
+            return 'failed';
+        }
     }
 
     // ── History ───────────────────────────────────────────────────────────────
 
     function showHistory() {
-        const hist = JSON.parse(localStorage.getItem('mathblitz_history') || '[]');
+        const hist = JSON.parse(localStorage.getItem('quantquiz_history') || '[]');
         UI.renderHistory(hist);
         UI.showScreen('history');
     }
 
     function initHistory() {
         document.getElementById('history-back').addEventListener('click', () => UI.showScreen('menu'));
+    }
+
+    // ── Share ─────────────────────────────────────────────────────────────────
+
+    const DIFF_NAMES = { easy: 'Easy', medium: 'Medium', hard: 'Hard' };
+
+    // Link back to the app, tagged so shares show up in analytics
+    function shareLink(mode) {
+        const url = new URL(location.origin + location.pathname);
+        url.searchParams.set('utm_source', 'share');
+        url.searchParams.set('utm_campaign', mode);
+        return url.toString();
+    }
+
+    // Wordle-style result text, e.g.
+    // "QuantQuiz Daily Oct 5 · 18/20 ✅ · 42s · 🔥 Streak 5\n🟩🟩🟥…\nBeat me: <link>"
+    function buildShareText(state, elapsed) {
+        const answered = state.correct + state.wrong;
+        const acc      = answered ? Math.round((state.correct / answered) * 100) : 0;
+        const secs     = Math.round(parseFloat(elapsed));
+        const diff     = DIFF_NAMES[state.difficulty] ?? '';
+        let line;
+
+        if (state.mode === 'daily') {
+            const parts = [`QuantQuiz Daily ${Daily.getDateLabel()}`, `${state.correct}/${state.totalQuestions} ✅`, `${secs}s`];
+            if (currentStreak > 0) parts.push(`🔥 Streak ${currentStreak}`);
+            const squares = state.answeredQuestions.map(q => q.correct ? '🟩' : '🟥');
+            const rows = [];
+            for (let i = 0; i < squares.length; i += 10) rows.push(squares.slice(i, i + 10).join(''));
+            line = [parts.join(' · '), ...rows].join('\n');
+        } else if (state.mode === 'sprint') {
+            line = `QuantQuiz Sprint (${diff}) · ${state.correct}/10 ✅ in ${parseFloat(elapsed).toFixed(1)}s`;
+        } else if (state.mode === 'classic') {
+            line = `QuantQuiz ${state.totalTime}s (${diff}) · ${state.score} pts · ${state.correct} ✅ · ${acc}%`;
+        } else {
+            line = `QuantQuiz ${state.mode === 'zen' ? 'Zen' : 'Community'} · ${state.correct} ✅ · ${acc}%`;
+        }
+        return `${line}\nBeat me: ${shareLink(state.mode)}`;
+    }
+
+    // Facts for the image card (js/share-card.js); same numbers as the text
+    function buildCardData(state, elapsed) {
+        const answered = state.correct + state.wrong;
+        const acc      = answered ? Math.round((state.correct / answered) * 100) : 0;
+        const secs     = parseFloat(elapsed);
+        const diff     = (DIFF_NAMES[state.difficulty] ?? '').toLowerCase();
+        const host     = new URL(shareLink(state.mode)).host;
+        const streak   = currentStreak > 0 ? [['Day streak', String(currentStreak)]] : [];
+        const grid     = state.answeredQuestions.map(q => q.correct);
+
+        switch (state.mode) {
+            case 'daily':
+                return { title: 'Daily challenge', date: Daily.getDateLabel(),
+                         headline: `${state.correct}/${state.totalQuestions}`, headlineLabel: 'correct',
+                         stats: [['Time', `${Math.round(secs)}s`], ['Accuracy', `${acc}%`], ...streak], grid, host };
+            case 'sprint':
+                return { title: `Sprint, ${diff}`, date: '10 questions',
+                         headline: `${secs.toFixed(1)}s`, headlineLabel: `${state.correct} of 10 correct`,
+                         stats: [['Accuracy', `${acc}%`], ['Best streak', String(state.bestStreak)], ...streak], grid, host };
+            case 'classic':
+                return { title: `Classic, ${diff}`, date: `${state.totalTime} seconds`,
+                         headline: String(state.score), headlineLabel: 'points',
+                         stats: [['Correct', String(state.correct)], ['Accuracy', `${acc}%`], ...streak], grid: null, host };
+            default:
+                return { title: state.mode === 'zen' ? 'Zen' : 'Community problems', date: null,
+                         headline: String(state.correct), headlineLabel: 'correct answers',
+                         stats: [['Accuracy', `${acc}%`], ['Best streak', String(state.bestStreak)]], grid: null, host };
+        }
+    }
+
+    // Rendered ahead of the tap: iOS only opens the share sheet right after a tap
+    function prepareShareCard() {
+        const result = lastResult;
+        if (!result) return;
+        result.cardFile = null;
+        ShareCard.render(buildCardData(result.state, result.elapsed))
+            .then(blob => {
+                if (blob && lastResult === result) {
+                    result.cardFile = new File([blob], 'quantquiz-result.png', { type: 'image/png' });
+                }
+            })
+            .catch(() => { /* text sharing still works */ });
+    }
+
+    function initShare() {
+        const btn = document.getElementById('share-btn');
+        btn.addEventListener('click', async () => {
+            if (!lastResult) return;
+            const text = buildShareText(lastResult.state, lastResult.elapsed);
+            const file = lastResult.cardFile;
+            track('share_clicked', { mode: lastResult.state.mode, image: !!file });
+
+            if (file && navigator.canShare?.({ files: [file] })) {
+                try {
+                    await navigator.share({ files: [file], text });
+                    return;
+                } catch (e) {
+                    if (e?.name === 'AbortError') return;   // closed the share sheet
+                }
+            }
+            const result = await shareOrCopy(text);
+            if (result === 'copied') {
+                btn.textContent = 'Copied! ✓';
+                setTimeout(() => { btn.textContent = '↗ Share'; }, 2000);
+            }
+        });
+    }
+
+    // Daily results put Share front and centre; Play Again only leads back to the menu there
+    // Play Again names the target when there is a best still to beat
+    function updateResultButtons(mode, bestToBeat) {
+        const isDaily = mode === 'daily';
+        const share   = document.getElementById('share-btn');
+        share.classList.toggle('btn-primary',   isDaily);
+        share.classList.toggle('btn-secondary', !isDaily);
+        share.textContent = '↗ Share';
+        const again = document.getElementById('play-again-btn');
+        again.classList.toggle('hidden', isDaily);
+        again.textContent = bestToBeat === null || mode === 'zen' ? 'Play again'
+                          : mode === 'sprint' ? `Play again · beat ${bestToBeat}s`
+                          :                     `Play again · beat ${bestToBeat}`;
+    }
+
+    // ── Profile modal ─────────────────────────────────────────────────────────
+
+    function initProfileModal() {
+        document.getElementById('profile-close-btn').addEventListener('click', () => {
+            document.getElementById('profile-modal').classList.remove('active');
+        });
+    }
+
+    async function showProfile(username) {
+        document.getElementById('profile-username').textContent = username;
+        document.getElementById('profile-xp').textContent      = '...';
+        document.getElementById('profile-streak').textContent  = '...';
+        document.getElementById('profile-longest').textContent = '...';
+        document.getElementById('profile-rank').innerHTML      = '';
+        document.getElementById('profile-modal').classList.add('active');
+
+        const data = await DB.getUserProfileByUsername(username);
+        if (!data) return;
+
+        const rank = getRankForXP(data.total_xp ?? 0);
+        document.getElementById('profile-xp').textContent      = data.total_xp ?? 0;
+        document.getElementById('profile-streak').textContent  = data.current_streak ?? 0;
+        document.getElementById('profile-longest').textContent = data.longest_streak ?? 0;
+        document.getElementById('profile-rank').innerHTML =
+            `<span class="rank-badge ${rank.cls}">${rank.icon} ${rank.name}</span>`;
     }
 
     // ── Submit Problem ────────────────────────────────────────────────────────
@@ -857,7 +1456,7 @@ const App = (() => {
             msgEl.style.color = 'var(--muted)';
             msgEl.textContent = 'Submitting...';
             try {
-                await DB.submitCommunityQuestion(currentUser.id, a, b);
+                await DB.submitCommunityQuestion(a, b);
                 msgEl.style.color = 'var(--green)';
                 msgEl.textContent = 'Submitted! It will appear after review ✓';
                 setTimeout(() => modal.classList.remove('active'), 1800);
@@ -872,6 +1471,9 @@ const App = (() => {
 
     function initNav() {
         document.getElementById('quit-btn').addEventListener('click', () => {
+            if (settings.mode === 'daily' &&
+                !confirm("Quit the daily challenge? Today's attempt will be used up.")) return;
+            session = null;
             stopTimers();
             UI.showScreen('menu');
             refreshBest();
@@ -897,29 +1499,28 @@ const App = (() => {
     // ── Init ──────────────────────────────────────────────────────────────────
 
     async function init() {
+        UI.mountNumpads();
+        UI.initDialogs();
+        UI.initPressedState();
         initMenu();
         initAnswerInput();
         initNav();
         initAuth();
         initLeaderboard();
         initDuel();
-        initThemes();
         initServiceWorker();
         initHistory();
         initSubmitProblem();
-        updateTimeSectionVisibility();
-        updateRankBadge(getTotalXP());
+        initShare();
+        initProfileModal();
+        loadGuestDaily();   // replaced by the account's state once a signed-in user arrives
+        refreshMenu();
+        updateRankBadge(currentXP);
+        updateDailyButton();
         refreshBest();
         UI.showScreen('menu');
-
-        const user = await DB.getUser();
-        if (user) {
-            currentUser = user;
-            const profile = await DB.getProfile(user.id);
-            currentUsername = profile?.username ?? user.email.split('@')[0];
-            updateStreakDisplay(profile?.current_streak ?? 0);
-            updateUserBar();
-        }
+        // The signed-in user (if any) arrives via onAuthChange → loadUser
+        joinChallengeFromUrl();
     }
 
     return { init };

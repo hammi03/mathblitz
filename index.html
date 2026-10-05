@@ -3,31 +3,83 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <title>MathBlitz</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+    <title>QuantQuiz – Mental math in 60-second rounds</title>
+    <meta name="description" content="Train mental math in 60-second rounds: multiplication drills, a daily challenge and duels. Free, no sign-up needed.">
+    <meta name="theme-color" content="#0C2340">
+    <link rel="canonical" href="https://quantquiz.vercel.app/">
+
+    <link rel="icon" href="icons/qq.svg" type="image/svg+xml">
+    <link rel="icon" href="icons/favicon-32.png" sizes="32x32" type="image/png">
+    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+    <link rel="manifest" href="manifest.webmanifest">
+    <meta name="apple-mobile-web-app-title" content="QQ">
+
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="QuantQuiz">
+    <meta property="og:title" content="QuantQuiz – Mental math in 60-second rounds">
+    <meta property="og:description" content="Multiplication drills, a daily challenge and duels. Free, no sign-up needed.">
+    <meta property="og:url" content="https://quantquiz.vercel.app/">
+    <meta property="og:image" content="https://quantquiz.vercel.app/icons/og-image.png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:image:alt" content="QuantQuiz logo and the question 47 × 83">
+    <meta name="twitter:card" content="summary_large_image">
+    <link rel="preload" href="fonts/big-shoulders-display.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="preload" href="fonts/atkinson-hyperlegible-next.woff2" as="font" type="font/woff2" crossorigin>
     <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+    <div id="announcer" class="sr-only" aria-live="polite" aria-atomic="true"></div>
 
     <!-- ── COUNTDOWN OVERLAY ── -->
     <div id="countdown-overlay" class="countdown-overlay">
         <div class="countdown-number" id="countdown-number">3</div>
     </div>
 
+    <!-- ── REACTION OVERLAY ── -->
+    <div id="reaction-overlay" class="reaction-overlay"></div>
+
+    <!-- ── PROFILE MODAL ── -->
+    <div id="profile-modal" class="modal-overlay">
+        <div class="modal" role="dialog" aria-modal="true" aria-labelledby="profile-title">
+            <h2 id="profile-title">Profile</h2>
+            <div class="profile-body">
+                <div class="profile-username" id="profile-username">—</div>
+                <div class="profile-rank" id="profile-rank"></div>
+                <div class="profile-stats">
+                    <div class="profile-stat">
+                        <span class="stat-label">Total XP</span>
+                        <span class="stat-value" id="profile-xp">0</span>
+                    </div>
+                    <div class="profile-stat">
+                        <span class="stat-label">Streak</span>
+                        <span class="stat-value" id="profile-streak">0</span>
+                    </div>
+                    <div class="profile-stat">
+                        <span class="stat-label">Best Streak</span>
+                        <span class="stat-value" id="profile-longest">0</span>
+                    </div>
+                </div>
+            </div>
+            <button id="profile-close-btn" class="btn-ghost">Close</button>
+        </div>
+    </div>
+
     <!-- ── RANK-UP OVERLAY ── -->
     <div id="rankup-overlay" class="rankup-overlay">
         <div class="rankup-content">
+            <div class="rankup-ring" aria-hidden="true"></div>
             <div class="rankup-icon" id="rankup-icon">🥈</div>
-            <div class="rankup-title">RANK UP!</div>
+            <div class="rankup-title">New rank</div>
             <div class="rankup-name" id="rankup-name">Silver</div>
         </div>
     </div>
 
     <!-- ── SUBMIT PROBLEM MODAL ── -->
     <div id="submit-modal" class="modal-overlay">
-        <div class="modal">
-            <h2 style="text-align:center;font-size:1rem;letter-spacing:3px;color:var(--muted);">SUBMIT A PROBLEM</h2>
+        <div class="modal" role="dialog" aria-modal="true" aria-labelledby="submit-title">
+            <h2 id="submit-title">Submit a problem</h2>
             <div class="submit-equation">
                 <input type="number" id="submit-a" placeholder="47" min="2" max="999">
                 <span class="submit-op">×</span>
@@ -35,14 +87,15 @@
                 <span id="submit-preview-ans" class="submit-preview">= ?</span>
             </div>
             <p id="submit-msg" class="auth-error" style="text-align:center;"></p>
-            <button id="submit-confirm-btn" class="btn-primary">SUBMIT</button>
+            <button id="submit-confirm-btn" class="btn-primary">Submit problem</button>
             <button id="submit-close-btn" class="btn-ghost">Cancel</button>
         </div>
     </div>
 
     <!-- ── AUTH MODAL ── -->
     <div id="auth-modal" class="modal-overlay">
-        <div class="modal">
+        <div class="modal" role="dialog" aria-modal="true" aria-labelledby="auth-title">
+            <h2 id="auth-title" class="sr-only">Sign in or create an account</h2>
             <div class="modal-tabs">
                 <button class="modal-tab active" data-tab="signin">Sign In</button>
                 <button class="modal-tab" data-tab="signup">Sign Up</button>
@@ -58,7 +111,7 @@
                     <input type="password" id="signin-password" placeholder="••••••••" autocomplete="current-password">
                 </div>
                 <p class="auth-error" id="signin-error"></p>
-                <button id="signin-btn" class="btn-primary">SIGN IN</button>
+                <button id="signin-btn" class="btn-primary">Sign in</button>
             </div>
 
             <div id="tab-signup" class="modal-pane">
@@ -75,179 +128,180 @@
                     <input type="password" id="signup-password" placeholder="at least 6 characters" autocomplete="new-password">
                 </div>
                 <p class="auth-error" id="signup-error"></p>
-                <button id="signup-btn" class="btn-primary">CREATE ACCOUNT</button>
+                <button id="signup-btn" class="btn-primary">Create account</button>
             </div>
 
             <button id="auth-close" class="btn-ghost">Continue as Guest</button>
+            <p class="auth-legal">How we handle your data: <a href="datenschutz.html">Datenschutz</a> · <a href="impressum.html">Impressum</a></p>
         </div>
     </div>
+
+    <main id="main" tabindex="-1">
 
     <!-- ── MENU SCREEN ── -->
     <div id="screen-menu" class="screen active">
-        <div class="logo">
-            <h1>MathBlitz</h1>
-            <p>Sharpen your mind. Beat the clock. Crush the competition.</p>
-        </div>
-
-        <!-- User bar -->
-        <div class="user-bar" id="user-bar">
-            <div id="user-guest" class="user-info">
-                <span class="user-name muted">Playing as Guest</span>
-                <button id="sign-in-menu-btn" class="btn-ghost small">Sign In</button>
+        <header class="menu-header">
+            <div class="logo">
+                <h1 tabindex="-1"><img src="icons/qq-mark.svg" alt="" class="logo-mark" width="54" height="49"> QuantQuiz</h1>
             </div>
-            <div id="user-loggedin" class="user-info hidden">
-                <div class="user-left">
-                    <span class="streak-badge" id="streak-badge" title="Day streak">🔥 <span id="streak-count">0</span></span>
+            <div class="header-actions">
+            <button class="icon-btn sound-toggle" aria-label="Sound" aria-pressed="true"></button>
+            <div class="user-bar" id="user-bar">
+                <div id="user-guest" class="user-info">
+                    <button id="sign-in-menu-btn" class="btn-ghost small">Sign in</button>
+                </div>
+                <div id="user-loggedin" class="user-info hidden">
                     <span id="rank-badge" class="rank-badge hidden"></span>
                     <span id="user-display-name" class="user-name">—</span>
-                </div>
-                <button id="sign-out-btn" class="btn-ghost small">Sign Out</button>
-            </div>
-        </div>
-
-        <div class="section">
-            <h2>Mode</h2>
-            <div class="modes">
-                <button class="mode-btn active" data-mode="classic">
-                    <span class="mode-icon">⚡</span>
-                    <div>
-                        <span class="mode-name">Classic</span>
-                        <span class="mode-desc">countdown timer · max score</span>
-                    </div>
-                </button>
-                <button class="mode-btn" data-mode="sprint">
-                    <span class="mode-icon">🏁</span>
-                    <div>
-                        <span class="mode-name">Sprint</span>
-                        <span class="mode-desc">10 questions · fastest time</span>
-                    </div>
-                </button>
-                <button class="mode-btn" data-mode="zen">
-                    <span class="mode-icon">∞</span>
-                    <div>
-                        <span class="mode-name">Zen</span>
-                        <span class="mode-desc">no timer · just practice</span>
-                    </div>
-                </button>
-                <button class="mode-btn mode-daily" id="daily-mode-btn" data-mode="daily">
-                    <span class="mode-icon">📅</span>
-                    <div>
-                        <span class="mode-name">Daily <span id="daily-date-label"></span></span>
-                        <span class="mode-desc" id="daily-mode-desc">20 questions · same for everyone</span>
-                    </div>
-                    <span class="daily-badge hidden" id="daily-done-badge">✓</span>
-                </button>
-                <button class="mode-btn mode-community" id="community-mode-btn" data-mode="community" style="grid-column:1/-1;">
-                    <span class="mode-icon">🌐</span>
-                    <div>
-                        <span class="mode-name">Community</span>
-                        <span class="mode-desc">player-made problems · Silver+</span>
-                    </div>
-                </button>
-            </div>
-        </div>
-
-        <div class="settings-row" id="settings-row">
-            <div class="section">
-                <h2>Difficulty</h2>
-                <div class="pill-row">
-                    <button class="pill-btn active" data-diff="easy">💀</button>
-                    <button class="pill-btn" data-diff="medium">💀💀</button>
-                    <button class="pill-btn" data-diff="hard">💀💀💀</button>
+                    <button id="sign-out-btn" class="btn-ghost small">Sign out</button>
                 </div>
             </div>
-            <div class="section" id="time-section">
-                <h2>Time</h2>
-                <div class="pill-row">
-                    <button class="pill-btn" data-time="30">30s</button>
-                    <button class="pill-btn active" data-time="60">60s</button>
-                    <button class="pill-btn" data-time="90">90s</button>
+            </div>
+        </header>
+        <p class="tagline">Mental math in 60-second rounds.</p>
+
+        <button id="start-btn" class="play-btn">
+            <span class="play-teaser" id="play-teaser" aria-hidden="true">47 × 8 = ?</span>
+            <span class="play-label">Play</span>
+            <span class="play-config" id="play-config">Classic, 60 seconds, easy</span>
+            <span class="play-best hidden" id="play-best">Best<strong id="best-display">—</strong></span>
+        </button>
+
+        <div class="today-strip" aria-live="polite"></div>
+
+        <button id="daily-mode-btn" class="daily-card">
+            <span class="daily-top">
+                <span class="daily-title">Daily challenge</span>
+                <span class="daily-date" id="daily-date-label"></span>
+            </span>
+            <span class="daily-desc" id="daily-mode-desc">20 questions, the same for everyone</span>
+            <span class="streak-badge hidden" id="streak-badge">🔥 <span id="streak-count">0</span> <span id="streak-noun">dailies</span> in a row</span>
+            <span class="daily-badge hidden" id="daily-done-badge">✓</span>
+        </button>
+
+        <button id="duel-btn" class="btn-duel">Duel</button>
+
+        <details class="options" id="options">
+            <summary id="options-toggle">Options</summary>
+            <div class="options-body">
+                <div class="section">
+                    <h2>Mode</h2>
+                    <div class="modes">
+                        <button class="mode-btn active" data-mode="classic">
+                            <span class="mode-name">Classic</span>
+                            <span class="mode-desc">Most points before the clock runs out</span>
+                        </button>
+                        <button class="mode-btn" data-mode="sprint">
+                            <span class="mode-name">Sprint</span>
+                            <span class="mode-desc">10 questions, fastest time wins</span>
+                        </button>
+                        <button class="mode-btn" data-mode="zen">
+                            <span class="mode-name">Zen</span>
+                            <span class="mode-desc">No clock, just practice</span>
+                        </button>
+                        <button class="mode-btn" id="community-mode-btn" data-mode="community">
+                            <span class="mode-name">Community</span>
+                            <span class="mode-desc">Problems made by players</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="settings-row" id="settings-row">
+                    <div class="section">
+                        <h2>Difficulty</h2>
+                        <div class="pill-row">
+                            <button class="pill-btn active" data-diff="easy">Easy<small>11–49</small></button>
+                            <button class="pill-btn" data-diff="medium">Medium<small>51–99</small></button>
+                            <button class="pill-btn" data-diff="hard">Hard<small>101–3000</small></button>
+                        </div>
+                    </div>
+                    <div class="section" id="time-section">
+                        <h2>Time</h2>
+                        <div class="pill-row">
+                            <button class="pill-btn" data-time="30">30 s</button>
+                            <button class="pill-btn active" data-time="60">60 s</button>
+                            <button class="pill-btn" data-time="90">90 s</button>
+                        </div>
+                    </div>
                 </div>
             </div>
-        </div>
-
-        <div class="action-row">
-            <button id="start-btn" class="btn-primary">START</button>
-            <button id="duel-btn" class="btn-duel">⚔️</button>
-        </div>
-
-        <div class="theme-picker">
-            <button class="theme-dot active" data-theme="void"      title="Void">🌌</button>
-            <button class="theme-dot"        data-theme="clouds"    title="Pixel Sky">☁️</button>
-            <button class="theme-dot"        data-theme="meadow"    title="Meadow">🌿</button>
-            <button class="theme-dot"        data-theme="synthwave" title="Synthwave">🌆</button>
-            <button class="theme-dot"        data-theme="space"     title="Deep Space">✨</button>
-        </div>
+        </details>
 
         <div class="menu-bottom">
-            <p class="best-label">Personal best: <strong id="best-display">—</strong></p>
             <div class="menu-bottom-btns">
                 <button id="leaderboard-btn" class="btn-secondary">Leaderboard</button>
                 <button id="history-btn" class="btn-secondary">History</button>
-                <button id="notif-btn" class="btn-secondary" title="Enable daily reminders">🔔</button>
+                <button id="notif-btn" class="btn-secondary hidden" title="Enable daily reminders" aria-label="Enable daily reminders">🔔</button>
             </div>
         </div>
+
     </div>
 
     <!-- ── GAME SCREEN ── -->
-    <div id="screen-game" class="screen">
+    <div id="screen-game" class="screen" hidden>
+        <h1 class="sr-only" tabindex="-1">Round in progress</h1>
         <div class="game-header">
             <div class="hud-stat">
-                <span class="hud-label">SCORE</span>
+                <span class="hud-label">Score</span>
                 <span class="hud-value" id="score-display">0</span>
             </div>
             <div class="hud-stat center">
-                <span class="hud-label" id="timer-label">TIME</span>
+                <span class="hud-label" id="timer-label">Time</span>
                 <span class="hud-value accent" id="timer-display">60</span>
             </div>
             <div class="hud-stat center">
-                <span class="hud-label">STREAK</span>
-                <span class="hud-value" id="streak-display">0</span>
+                <span class="hud-label">Streak</span>
+                <span class="hud-value streak-val" id="streak-display" data-heat="0">0</span>
             </div>
             <div class="hud-stat right">
-                <span class="hud-label">LEVEL</span>
+                <span class="hud-label">Level</span>
                 <span class="hud-value level-val" id="level-display">1</span>
             </div>
         </div>
 
         <div class="progress-bar"><div class="progress-fill" id="progress-fill"></div></div>
 
-        <div class="question-card">
+        <div class="question-card" id="question-card">
+            <div class="combo" id="combo" aria-hidden="true"></div>
             <div class="question" id="question-display">—</div>
             <div class="answer-row">
-                <input type="number" id="answer-input" placeholder="answer" autocomplete="off" inputmode="numeric">
-                <button id="submit-btn" class="btn-submit">→</button>
+                <input type="text" id="answer-input" class="answer-input" placeholder="answer" autocomplete="off" inputmode="numeric" aria-label="Your answer" maxlength="10">
+                <button id="submit-btn" class="btn-submit">Enter</button>
             </div>
-            <div class="feedback" id="feedback">&nbsp;</div>
+            <div class="feedback" id="feedback" aria-live="polite">&nbsp;</div>
         </div>
 
-        <button id="quit-btn" class="btn-ghost">Quit</button>
+        <div class="game-footer">
+            <button id="quit-btn" class="btn-ghost">Quit</button>
+            <button class="icon-btn sound-toggle" aria-label="Sound" aria-pressed="true"></button>
+        </div>
+
+        <div class="numpad" data-input="answer-input" data-submit="submit-btn"></div>
     </div>
 
     <!-- ── RESULTS SCREEN ── -->
-    <div id="screen-results" class="screen">
-        <h1 class="results-title" id="results-title">Game Over</h1>
+    <div id="screen-results" class="screen" hidden>
         <p class="results-sub" id="results-sub"></p>
+        <div class="result-hero">
+            <h1 class="results-title" id="results-title" tabindex="-1">Round over</h1>
+            <div class="hero-score">
+                <span class="hero-value" id="res-hero">0</span>
+                <span class="hero-label" id="res-hero-label">points</span>
+            </div>
+            <p class="res-delta" id="res-delta"></p>
+        </div>
 
         <div class="stats-grid">
             <div class="stat-card">
-                <span class="stat-label">Score</span>
-                <span class="stat-value" id="res-score">0</span>
-            </div>
-            <div class="stat-card">
                 <span class="stat-label">Correct</span>
-                <span class="stat-value green" id="res-correct">0</span>
-            </div>
-            <div class="stat-card">
-                <span class="stat-label">Wrong</span>
-                <span class="stat-value red" id="res-wrong">0</span>
+                <span class="stat-value" id="res-correct">0</span>
             </div>
             <div class="stat-card">
                 <span class="stat-label">Accuracy</span>
                 <span class="stat-value" id="res-accuracy">0%</span>
             </div>
             <div class="stat-card">
-                <span class="stat-label">Best Streak</span>
+                <span class="stat-label">Streak</span>
                 <span class="stat-value" id="res-streak">0</span>
             </div>
             <div class="stat-card">
@@ -256,30 +310,33 @@
             </div>
         </div>
 
-        <div class="new-best" id="new-best">NEW BEST!</div>
+        <div class="today-strip" aria-live="polite"></div>
         <p class="save-status" id="save-status"></p>
 
         <div class="result-actions">
-            <button id="play-again-btn" class="btn-primary">PLAY AGAIN</button>
-            <button id="submit-problem-btn" class="btn-secondary hidden">🎯 Submit a Problem</button>
+            <button id="play-again-btn" class="btn-primary">Play again</button>
+            <div class="result-actions-row">
+                <button id="share-btn" class="btn-secondary">↗ Share</button>
+                <button id="submit-problem-btn" class="btn-secondary hidden">🎯 Submit a Problem</button>
+            </div>
             <button id="menu-btn" class="btn-ghost">Menu</button>
         </div>
     </div>
 
     <!-- ── LEADERBOARD SCREEN ── -->
-    <div id="screen-leaderboard" class="screen">
+    <div id="screen-leaderboard" class="screen" hidden>
         <div class="lb-header">
             <button id="lb-back" class="btn-ghost">← Back</button>
-            <h1 class="lb-title">Leaderboard</h1>
+            <h1 class="lb-title" tabindex="-1">Leaderboard</h1>
             <div></div>
         </div>
 
         <div class="section">
             <h2>Mode</h2>
             <div class="pill-row">
+                <button class="pill-btn" data-lb-mode="global">🌍 Global</button>
                 <button class="pill-btn active" data-lb-mode="classic">Classic</button>
                 <button class="pill-btn" data-lb-mode="sprint">Sprint</button>
-                <button class="pill-btn" data-lb-mode="zen">Zen</button>
                 <button class="pill-btn" data-lb-mode="daily">Daily</button>
             </div>
         </div>
@@ -287,9 +344,9 @@
         <div class="section">
             <h2>Difficulty</h2>
             <div class="pill-row">
-                <button class="pill-btn active" data-lb-diff="easy">💀</button>
-                <button class="pill-btn" data-lb-diff="medium">💀💀</button>
-                <button class="pill-btn" data-lb-diff="hard">💀💀💀</button>
+                <button class="pill-btn active" data-lb-diff="easy">Easy</button>
+                <button class="pill-btn" data-lb-diff="medium">Medium</button>
+                <button class="pill-btn" data-lb-diff="hard">Hard</button>
             </div>
         </div>
 
@@ -308,10 +365,10 @@
     </div>
 
     <!-- ── HISTORY SCREEN ── -->
-    <div id="screen-history" class="screen">
+    <div id="screen-history" class="screen" hidden>
         <div class="lb-header">
             <button id="history-back" class="btn-ghost">← Back</button>
-            <h1 class="lb-title">History</h1>
+            <h1 class="lb-title" tabindex="-1">History</h1>
             <div></div>
         </div>
         <div id="history-list" class="lb-list">
@@ -320,19 +377,20 @@
     </div>
 
     <!-- ── DUEL SCREEN ── -->
-    <div id="screen-duel" class="screen">
+    <div id="screen-duel" class="screen" hidden>
 
         <!-- Phase: searching / countdown -->
         <div id="duel-searching" class="duel-phase">
             <div id="duel-pre-search">
                 <div class="duel-sword">⚔️</div>
-                <h2 class="duel-search-title">Finding Opponent</h2>
+                <h1 class="duel-search-title" id="duel-search-title" tabindex="-1">Finding Opponent</h1>
                 <div class="duel-dots"><span></span><span></span><span></span></div>
-                <p class="duel-search-sub">Waiting for another player...</p>
+                <p class="duel-search-sub" id="duel-search-sub">Waiting for another player...</p>
+                <button id="challenge-btn" class="btn-secondary btn-challenge">🔗 Challenge a friend</button>
                 <button id="cancel-duel-btn" class="btn-ghost">Cancel</button>
             </div>
             <div id="duel-pre-countdown" class="hidden">
-                <p class="duel-found-label">Opponent found!</p>
+                <h1 class="duel-found-label" id="duel-found-label" tabindex="-1">Opponent found!</h1>
                 <p class="duel-opp-found" id="duel-opp-found">—</p>
                 <div class="duel-countdown-big" id="duel-countdown-num">3</div>
             </div>
@@ -340,6 +398,7 @@
 
         <!-- Phase: active duel -->
         <div id="duel-active" class="duel-phase hidden">
+            <h1 class="sr-only" tabindex="-1">Duel in progress</h1>
             <div class="duel-scores">
                 <div class="duel-pscore">
                     <span class="duel-pname" id="duel-my-name">You</span>
@@ -364,19 +423,27 @@
             <div class="question-card">
                 <div class="question" id="duel-question">—</div>
                 <div class="answer-row">
-                    <input type="number" id="duel-input" placeholder="answer" autocomplete="off" inputmode="numeric">
-                    <button id="duel-submit-btn" class="btn-submit">→</button>
+                    <input type="text" id="duel-input" class="answer-input" placeholder="answer" autocomplete="off" inputmode="numeric" aria-label="Your answer" maxlength="10">
+                    <button id="duel-submit-btn" class="btn-submit">Enter</button>
                 </div>
-                <div class="feedback" id="duel-feedback">&nbsp;</div>
+                <div class="feedback" id="duel-feedback" aria-live="polite">&nbsp;</div>
             </div>
 
+            <div class="reaction-bar">
+                <button class="reaction-btn" data-emoji="🔥">🔥</button>
+                <button class="reaction-btn" data-emoji="😂">😂</button>
+                <button class="reaction-btn" data-emoji="💀">💀</button>
+                <button class="reaction-btn" data-emoji="🤯">🤯</button>
+            </div>
             <button id="forfeit-btn" class="btn-ghost">Forfeit</button>
+
+            <div class="numpad" data-input="duel-input" data-submit="duel-submit-btn"></div>
         </div>
 
         <!-- Phase: result -->
         <div id="duel-result" class="duel-phase hidden">
             <div class="duel-result-icon" id="duel-result-icon">🏆</div>
-            <h1 class="duel-result-title" id="duel-result-title">Victory!</h1>
+            <h1 class="duel-result-title" id="duel-result-title" tabindex="-1">Victory!</h1>
             <div class="duel-result-scores">
                 <div class="duel-result-player">
                     <span class="duel-result-name" id="dr-my-name">You</span>
@@ -391,23 +458,35 @@
                 </div>
             </div>
             <div class="result-actions">
-                <button id="duel-again-btn" class="btn-primary">DUEL AGAIN</button>
+                <button id="duel-again-btn" class="btn-primary">Duel again</button>
                 <button id="duel-menu-btn" class="btn-ghost">Menu</button>
             </div>
         </div>
     </div>
 
+    </main>
+
+    <footer class="legal-footer">
+        <span>© 2026 QuantQuiz</span>
+        <a href="impressum.html">Impressum</a>
+        <a href="datenschutz.html">Datenschutz</a>
+    </footer>
+
     <!-- Scripts — order matters -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://cdn.jsdelivr.net/npm/socket.io-client@4/dist/socket.io.min.js"></script>
     <script src="js/config.js"></script>
-    <script src="js/bg.js"></script>
+    <script src="js/analytics.js"></script>
     <script src="js/db.js"></script>
     <script src="js/sound.js"></script>
     <script src="js/game.js"></script>
     <script src="js/daily.js"></script>
+    <script src="js/bot-duel.js"></script>
     <script src="js/duel-client.js"></script>
     <script src="js/ui.js"></script>
+    <script src="js/share-card.js"></script>
     <script src="js/main.js"></script>
+    <!-- Vercel Web Analytics: cookieless; answers once enabled in the Vercel dashboard -->
+    <script defer src="/_vercel/insights/script.js"></script>
 </body>
 </html>
