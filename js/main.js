@@ -533,6 +533,7 @@ const App = (() => {
     async function startGame() {
         if (countdownActive) return;
         if (settings.mode === 'daily' && dailyDone) return;
+        armPlay();
 
         countdownActive = true;
         stopTimers();
@@ -1211,6 +1212,7 @@ const App = (() => {
     }
 
     function enterDuelSearch(title, sub) {
+        armPlay();
         DuelClient.disconnect(); // clean up any previous connection
         _challengeLink = null;
         showDuelPhase('searching');
@@ -1557,6 +1559,54 @@ const App = (() => {
         document.getElementById('answer-input').focus();
     }
 
+    // ── Browser back / swipe back during play ─────────────────────────────────
+    // Starting a round or duel pushes one history entry. Back then lands on
+    // popstate instead of leaving the page: a running round or duel opens the
+    // leave dialog (and the entry is pushed again), a duel search is cancelled.
+    // Back on the menu or results the entry is removed again (leavePlay).
+
+    const PLAY_STATE = 'qq-play';
+    let ignorePop = false;
+
+    function armPlay() {
+        if (history.state?.qq !== PLAY_STATE) history.pushState({ qq: PLAY_STATE }, '');
+    }
+
+    function leavePlay() {
+        if (history.state?.qq !== PLAY_STATE) return;
+        ignorePop = true;
+        history.back();
+    }
+
+    function initBackButton() {
+        document.addEventListener('screenchange', e => {
+            if (e.detail === 'menu' || e.detail === 'results') leavePlay();
+        });
+
+        window.addEventListener('popstate', () => {
+            const active = document.querySelector('.screen.active')?.id;
+            if (ignorePop) {
+                ignorePop = false;
+                // A new round started before our own back() landed: arm again
+                if (active === 'screen-game' || active === 'screen-duel') armPlay();
+                return;
+            }
+
+            if (active === 'screen-game' && (countdownActive || Game.isRunning())) {
+                armPlay();
+                confirmLeaveRound();   // no-op during the 3-2-1 countdown
+                return;
+            }
+            if (active === 'screen-duel') {
+                const phase = currentDuelPhase();
+                if (phase === 'active') { armPlay(); confirmForfeit(); return; }
+                if (phase === 'searching') DuelClient.cancelMatch();
+                DuelClient.disconnect();
+                UI.showScreen('menu');
+            }
+        });
+    }
+
     // ── Navigation ────────────────────────────────────────────────────────────
 
     function initNav() {
@@ -1589,6 +1639,7 @@ const App = (() => {
         initMenu();
         initAnswerInput();
         initNav();
+        initBackButton();
         initAuth();
         initLeaderboard();
         initDuel();
