@@ -320,6 +320,7 @@ const App = (() => {
         });
 
         document.getElementById('start-btn').addEventListener('click', startGame);
+        document.getElementById('play-teaser').textContent = teaserQuestion();
         initSoundToggles();
         document.getElementById('daily-mode-btn').addEventListener('click', startDaily);
 
@@ -343,6 +344,14 @@ const App = (() => {
             updateDailyButton();
             refreshToday();
         }, 60000);
+    }
+
+    // A taste of the game on the Play card, new on every load: "47 × 8 = ?"
+    function teaserQuestion() {
+        const pick = (lo, hi) => lo + Math.floor(Math.random() * (hi - lo + 1));
+        let a;
+        do { a = pick(12, 49); } while (a % 10 === 0);
+        return `${a} × ${pick(3, 9)} = ?`;
     }
 
     function updateDailyButton() {
