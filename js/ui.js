@@ -26,6 +26,8 @@ const UI = (() => {
     function showScreen(name) {
         Object.values(screens).forEach(s => s.classList.remove('active'));
         screens[name].classList.add('active');
+        window.scrollTo(0, 0);
+        document.dispatchEvent(new CustomEvent('screenchange', { detail: name }));
     }
 
     // ── Game HUD ──────────────────────────────────────────────────────────────
@@ -132,11 +134,13 @@ const UI = (() => {
 
         if (state.mode === 'sprint') {
             document.getElementById('results-title').textContent = elapsed + 's';
-            document.getElementById('results-sub').textContent   = '10 questions · sprint';
+            document.getElementById('results-sub').textContent   = 'Sprint, 10 questions';
         } else {
             document.getElementById('results-title').textContent = 'Game Over';
             document.getElementById('results-sub').textContent   =
-                state.mode === 'classic' ? `${state.totalTime}s classic` : 'zen session';
+                state.mode === 'classic' ? `Classic, ${state.totalTime} seconds` :
+                state.mode === 'daily'   ? 'Daily challenge' :
+                state.mode === 'community' ? 'Community problems' : 'Zen session';
         }
 
         document.getElementById('res-score').textContent    = state.score;
@@ -166,8 +170,8 @@ const UI = (() => {
 
     // ── History screen ────────────────────────────────────────────────────────
 
-    const MODE_LABEL = { classic: '⚡ Classic', sprint: '🏁 Sprint', zen: '∞ Zen', daily: '📅 Daily', community: '🌐 Community' };
-    const DIFF_LABEL = { easy: '💀', medium: '💀💀', hard: '💀💀💀' };
+    const MODE_LABEL = { classic: 'Classic', sprint: 'Sprint', zen: 'Zen', daily: 'Daily', community: 'Community' };
+    const DIFF_LABEL = { easy: 'easy', medium: 'medium', hard: 'hard' };
 
     function renderHistory(entries) {
         const list = document.getElementById('history-list');

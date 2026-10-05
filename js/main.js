@@ -207,7 +207,7 @@ const App = (() => {
     function updateStreakDisplay(streak) {
         currentStreak = streak;
         document.getElementById('streak-count').textContent = streak;
-        document.getElementById('streak-badge').style.display = streak > 0 ? 'inline-flex' : 'none';
+        document.getElementById('streak-badge').classList.toggle('hidden', !(currentUser && streak > 0));
     }
 
     function setLoading(btnId, loading) {
@@ -219,41 +219,45 @@ const App = (() => {
     // ── Menu ──────────────────────────────────────────────────────────────────
 
     function initMenu() {
+        loadPrefs();
+
         document.querySelectorAll('.mode-btn').forEach(btn => {
             btn.addEventListener('click', () => {
-                if (btn.id === 'daily-mode-btn' && !currentUser && DB.isConfigured) { openAuthModal(); return; }
-                if (btn.id === 'daily-mode-btn' && dailyDone) return;
                 if (btn.id === 'community-mode-btn' && !DB.isConfigured) {
                     alert('Community mode needs Supabase configured in js/config.js.');
                     return;
                 }
-                document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
-                btn.classList.add('active');
                 settings.mode = btn.dataset.mode;
-                updateTimeSectionVisibility();
-                refreshBest();
+                savePrefs();
+                refreshMenu();
             });
         });
 
         document.querySelectorAll('[data-diff]').forEach(btn => {
             btn.addEventListener('click', () => {
-                document.querySelectorAll('[data-diff]').forEach(b => b.classList.remove('active'));
-                btn.classList.add('active');
                 settings.difficulty = btn.dataset.diff;
-                refreshBest();
+                savePrefs();
+                refreshMenu();
             });
         });
 
         document.querySelectorAll('[data-time]').forEach(btn => {
             btn.addEventListener('click', () => {
-                document.querySelectorAll('[data-time]').forEach(b => b.classList.remove('active'));
-                btn.classList.add('active');
                 settings.timeLimit = parseInt(btn.dataset.time, 10);
-                refreshBest();
+                savePrefs();
+                refreshMenu();
             });
         });
 
         document.getElementById('start-btn').addEventListener('click', startGame);
+        document.getElementById('daily-mode-btn').addEventListener('click', startDaily);
+
+        // Back on the menu after a daily: Play uses the remembered settings again
+        document.addEventListener('screenchange', e => {
+            if (e.detail !== 'menu') return;
+            loadPrefs();
+            refreshMenu();
+        });
         document.getElementById('leaderboard-btn').addEventListener('click', showLeaderboard);
         document.getElementById('history-btn').addEventListener('click', showHistory);
         document.getElementById('notif-btn').addEventListener('click', requestNotificationPermission);
@@ -269,16 +273,61 @@ const App = (() => {
         const desc    = document.getElementById('daily-mode-desc');
         const btn     = document.getElementById('daily-mode-btn');
         badge.classList.toggle('hidden', !done);
-        btn.style.opacity = done ? '0.5' : '1';
-        btn.style.cursor  = done ? 'default' : 'pointer';
-        desc.textContent  = done          ? 'Come back tomorrow!'
-                          : !currentUser  ? 'sign in to play · same for everyone'
-                          :                 '20 questions · same for everyone';
+        btn.classList.toggle('done', done);
+        desc.textContent  = done          ? 'Done for today. A new one starts at midnight UTC.'
+                          : !currentUser  ? 'Sign in to play. The same 20 questions for everyone.'
+                          :                 '20 questions, the same for everyone';
+    }
 
-        // Switch away from daily if it can't be played right now
-        if (settings.mode === 'daily' && (done || !currentUser)) {
-            document.querySelector('.mode-btn[data-mode="classic"]').click();
+    // The daily starts straight from its card and doesn't change the remembered mode
+    function startDaily() {
+        if (!currentUser) { if (DB.isConfigured) openAuthModal(); return; }
+        if (dailyDone || countdownActive) return;
+        settings.mode = 'daily';
+        startGame();
+    }
+
+    // ── Remembered settings ───────────────────────────────────────────────────
+
+    const PREFS_KEY  = 'quantquiz_prefs';
+    const MENU_MODES = ['classic', 'sprint', 'zen', 'community'];
+
+    function loadPrefs() {
+        try {
+            const p = JSON.parse(localStorage.getItem(PREFS_KEY) || '{}');
+            settings.mode       = MENU_MODES.includes(p.mode) ? p.mode : 'classic';
+            if (['easy', 'medium', 'hard'].includes(p.difficulty)) settings.difficulty = p.difficulty;
+            if ([30, 60, 90].includes(p.timeLimit))                settings.timeLimit  = p.timeLimit;
+        } catch {
+            settings.mode = 'classic';
         }
+    }
+
+    function savePrefs() {
+        try {
+            localStorage.setItem(PREFS_KEY, JSON.stringify({
+                mode: settings.mode, difficulty: settings.difficulty, timeLimit: settings.timeLimit,
+            }));
+        } catch { /* private mode: settings just aren't remembered */ }
+    }
+
+    function describeSettings() {
+        const diff = settings.difficulty;
+        switch (settings.mode) {
+            case 'sprint':    return `Sprint, 10 questions, ${diff}`;
+            case 'zen':       return `Zen, no clock, ${diff}`;
+            case 'community': return 'Community problems';
+            default:          return `Classic, ${settings.timeLimit} seconds, ${diff}`;
+        }
+    }
+
+    function refreshMenu() {
+        document.querySelectorAll('.mode-btn').forEach(b => b.classList.toggle('active', b.dataset.mode === settings.mode));
+        document.querySelectorAll('[data-diff]').forEach(b => b.classList.toggle('active', b.dataset.diff === settings.difficulty));
+        document.querySelectorAll('[data-time]').forEach(b => b.classList.toggle('active', parseInt(b.dataset.time, 10) === settings.timeLimit));
+        document.getElementById('play-config').textContent = describeSettings();
+        updateTimeSectionVisibility();
+        refreshBest();
     }
 
     function updateTimeSectionVisibility() {
@@ -762,6 +811,7 @@ const App = (() => {
 
         // Online-only parts: friend challenges and emoji reactions (the bot doesn't react)
         const online = DuelClient.isOnline();
+        document.getElementById('duel-btn').textContent = online ? 'Duel a player' : 'Duel the bot';
         document.getElementById('challenge-btn').classList.toggle('hidden', !online);
         document.querySelector('.reaction-bar').classList.toggle('hidden', !online);
 
@@ -1067,7 +1117,7 @@ const App = (() => {
 
     // ── Share ─────────────────────────────────────────────────────────────────
 
-    const DIFF_SKULLS = { easy: '💀', medium: '💀💀', hard: '💀💀💀' };
+    const DIFF_NAMES = { easy: 'Easy', medium: 'Medium', hard: 'Hard' };
 
     // Link back to the app, tagged so shares show up in analytics
     function shareLink(mode) {
@@ -1083,7 +1133,7 @@ const App = (() => {
         const answered = state.correct + state.wrong;
         const acc      = answered ? Math.round((state.correct / answered) * 100) : 0;
         const secs     = Math.round(parseFloat(elapsed));
-        const skulls   = DIFF_SKULLS[state.difficulty] ?? '';
+        const diff     = DIFF_NAMES[state.difficulty] ?? '';
         let line;
 
         if (state.mode === 'daily') {
@@ -1094,9 +1144,9 @@ const App = (() => {
             for (let i = 0; i < squares.length; i += 10) rows.push(squares.slice(i, i + 10).join(''));
             line = [parts.join(' · '), ...rows].join('\n');
         } else if (state.mode === 'sprint') {
-            line = `QuantQuiz Sprint ${skulls} · ${state.correct}/10 ✅ in ${parseFloat(elapsed).toFixed(1)}s`;
+            line = `QuantQuiz Sprint (${diff}) · ${state.correct}/10 ✅ in ${parseFloat(elapsed).toFixed(1)}s`;
         } else if (state.mode === 'classic') {
-            line = `QuantQuiz ${state.totalTime}s ${skulls} · ${state.score} pts · ${state.correct} ✅ · ${acc}%`;
+            line = `QuantQuiz ${state.totalTime}s (${diff}) · ${state.score} pts · ${state.correct} ✅ · ${acc}%`;
         } else {
             line = `QuantQuiz ${state.mode === 'zen' ? 'Zen' : 'Community'} · ${state.correct} ✅ · ${acc}%`;
         }
@@ -1244,7 +1294,7 @@ const App = (() => {
         initSubmitProblem();
         initShare();
         initProfileModal();
-        updateTimeSectionVisibility();
+        refreshMenu();
         updateRankBadge(currentXP);
         updateDailyButton();
         refreshBest();
