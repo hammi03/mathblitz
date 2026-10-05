@@ -259,7 +259,7 @@ const App = (() => {
     }
 
     function openAuthModal() {
-        if (!DB.isConfigured) { alert('Supabase not configured. Fill in js/config.js first.'); return; }
+        if (!DB.isConfigured) { UI.toast('Sign-in is unavailable right now. Please try again later.'); return; }
         document.getElementById('auth-modal').classList.add('active');
     }
     function closeAuthModal() {
@@ -301,7 +301,7 @@ const App = (() => {
         document.querySelectorAll('.mode-btn').forEach(btn => {
             btn.addEventListener('click', () => {
                 if (btn.id === 'community-mode-btn' && !DB.isConfigured) {
-                    alert('Community mode needs Supabase configured in js/config.js.');
+                    UI.toast('Community problems are unavailable right now. Please try again later.');
                     return;
                 }
                 settings.mode = btn.dataset.mode;
@@ -478,7 +478,7 @@ const App = (() => {
 
     async function requestNotificationPermission() {
         if (!('Notification' in window)) {
-            alert('Your browser does not support notifications.');
+            UI.toast('Your browser does not support notifications.');
             return;
         }
         const permission = await Notification.requestPermission();
@@ -557,7 +557,7 @@ const App = (() => {
             } else if (settings.mode === 'community') {
                 const qs = await DB.getCommunityQuestions(20);
                 if (!qs.length) {
-                    alert('No community problems yet. Check back soon!');
+                    UI.toast('No community problems yet. Check back soon!');
                     UI.showScreen('menu');
                     return;
                 }
@@ -571,9 +571,9 @@ const App = (() => {
                 if (String(e.message).includes('daily_already_played')) {
                     dailyDone = true;
                     updateDailyButton();
-                    alert("You've already played today's daily challenge.");
+                    UI.toast("You've already played today's daily challenge.");
                 } else {
-                    alert('Could not start the daily challenge. Check your connection and try again.');
+                    UI.toast('Could not start the daily challenge. Check your connection and try again.');
                 }
                 UI.showScreen('menu');
                 return;
@@ -775,7 +775,7 @@ const App = (() => {
 
     function showLeaderboard() {
         if (!DB.isConfigured) {
-            alert('Fill in js/config.js with your Supabase credentials first.');
+            UI.toast('The leaderboard is unavailable right now. Please try again later.');
             return;
         }
         const validLbModes = ['global', 'classic', 'sprint', 'daily'];
@@ -988,13 +988,13 @@ const App = (() => {
         DuelClient.on('connect_error', () => {
             DuelClient.disconnect();
             UI.showScreen('menu');
-            alert('Could not connect to the duel server. Please try again in a moment.');
+            UI.toast('Could not connect to the duel server. Please try again in a moment.');
         });
 
         DuelClient.on('duel_error', ({ message }) => {
             DuelClient.disconnect();
             UI.showScreen('menu');
-            alert(message);
+            UI.toast(message);
         });
 
         DuelClient.on('searching', () => {
@@ -1141,7 +1141,7 @@ const App = (() => {
                 showDuelProblem('⚠️', 'Disconnected');
             } else if (phase === 'searching') {
                 UI.showScreen('menu');
-                alert('Lost connection to the duel server. Please try again.');
+                UI.toast('Lost connection to the duel server. Please try again.');
             }
         });
 
@@ -1230,7 +1230,7 @@ const App = (() => {
         history.replaceState(null, '', location.pathname + (rest ? `?${rest}` : ''));
 
         if (!DuelClient.isOnline()) {
-            alert('Online duels are coming soon! Until then, tap ⚔️ to duel our bot.');
+            UI.toast('Online duels are coming soon! Until then, tap "Duel the bot".');
             return;
         }
 
