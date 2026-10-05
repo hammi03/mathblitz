@@ -70,14 +70,14 @@ const UI = (() => {
     // ── Dialogs: focus in, Escape out, page behind them inert ─────────────────
 
     function initDialogs() {
-        const main     = document.getElementById('main');
+        const behind   = document.querySelectorAll('#main, .legal-footer');
         const overlays = [...document.querySelectorAll('.modal-overlay')];
         const closers  = { 'auth-modal': 'auth-close', 'profile-modal': 'profile-close-btn', 'submit-modal': 'submit-close-btn' };
         let returnTo   = null;
 
         const sync = () => {
             const open = overlays.find(o => o.classList.contains('active'));
-            main.inert = !!open;
+            behind.forEach(el => { el.inert = !!open; });
             if (open && !open.contains(document.activeElement)) {
                 returnTo = document.activeElement;
                 open.querySelector('input, button:not([disabled])')?.focus();
