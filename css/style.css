@@ -355,7 +355,7 @@ h2 {
     transition: border-color 0.15s, color 0.15s;
 }
 .btn-ghost:hover { border-color: var(--line); color: var(--line); }
-.btn-ghost.small { min-height: 34px; padding: 0.3rem 0.75rem; font-size: 0.82rem; }
+.btn-ghost.small { min-height: 44px; padding: 0.3rem 0.75rem; font-size: 0.82rem; }
 
 /* Start + duel row */
 .action-row { display: flex; gap: 0.5rem; align-items: stretch; }
