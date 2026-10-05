@@ -246,8 +246,7 @@ const App = (() => {
         } else {
             currentUsername = null;
             currentXP       = 0;
-            dailyDone       = false;
-            updateStreakDisplay(0);
+            loadGuestDaily();
         }
         updateUserBar();
         updateDailyButton();
@@ -272,7 +271,13 @@ const App = (() => {
     function updateStreakDisplay(streak) {
         currentStreak = streak;
         document.getElementById('streak-count').textContent = streak;
-        document.getElementById('streak-badge').classList.toggle('hidden', !(currentUser && streak > 0));
+        document.getElementById('streak-badge').classList.toggle('hidden', !(streak > 0));
+    }
+
+    // Guests: daily state and streak live in this browser
+    function loadGuestDaily() {
+        dailyDone = Daily.guestDone();
+        updateStreakDisplay(Daily.guestStreak());
     }
 
     function setLoading(btnId, loading) {
@@ -341,14 +346,14 @@ const App = (() => {
     }
 
     function updateDailyButton() {
-        const done    = !!currentUser && dailyDone;
+        const done    = dailyDone;
         const badge   = document.getElementById('daily-done-badge');
         const desc    = document.getElementById('daily-mode-desc');
         const btn     = document.getElementById('daily-mode-btn');
         badge.classList.toggle('hidden', !done);
         btn.classList.toggle('done', done);
         desc.textContent  = done          ? `Done ✓ Next one in ${timeToNextDaily()}`
-                          : !currentUser  ? 'Sign in to play. The same 20 questions for everyone.'
+                          : !currentUser  ? '20 questions, a new set every day'
                           :                 '20 questions, the same for everyone';
     }
 
@@ -363,7 +368,6 @@ const App = (() => {
 
     // The daily starts straight from its card and doesn't change the remembered mode
     function startDaily() {
-        if (!currentUser) { if (DB.isConfigured) openAuthModal(); return; }
         if (dailyDone || countdownActive) return;
         settings.mode = 'daily';
         startGame();
@@ -506,7 +510,7 @@ const App = (() => {
 
     async function startGame() {
         if (countdownActive) return;
-        if (settings.mode === 'daily' && (!currentUser || dailyDone)) return;
+        if (settings.mode === 'daily' && dailyDone) return;
 
         countdownActive = true;
         stopTimers();
@@ -517,7 +521,13 @@ const App = (() => {
         // Questions are fetched after the countdown so the server clock starts with the game
         const gameSettings = { ...settings };
         try {
-            if (settings.mode === 'daily') {
+            if (settings.mode === 'daily' && !currentUser) {
+                // Guests: local question set, the attempt is used up on start
+                updateStreakDisplay(Daily.markGuestStarted());
+                dailyDone = true;
+                updateDailyButton();
+                gameSettings.predefinedQuestions = Daily.guestQuestions();
+            } else if (settings.mode === 'daily') {
                 session   = await DB.startDaily();
                 dailyDone = true;
                 updateDailyButton();
@@ -693,6 +703,7 @@ const App = (() => {
             // Zen and community are practice modes: no leaderboard, no XP
             if (state.mode === 'zen' || state.mode === 'community') return;
             if (currentUser)          setSaveStatus('Offline: score not saved.', 'red');
+            else if (state.mode === 'daily') setSaveStatus('Sign in to save your streak and rank.');
             else if (DB.isConfigured) setSaveStatus('Sign in to compete on the leaderboard');
             return;
         }
@@ -1253,7 +1264,7 @@ const App = (() => {
 
         if (state.mode === 'daily') {
             const parts = [`QuantQuiz Daily ${Daily.getDateLabel()}`, `${state.correct}/${state.totalQuestions} ✅`, `${secs}s`];
-            if (currentUser && currentStreak > 0) parts.push(`🔥 Streak ${currentStreak}`);
+            if (currentStreak > 0) parts.push(`🔥 Streak ${currentStreak}`);
             const squares = state.answeredQuestions.map(q => q.correct ? '🟩' : '🟥');
             const rows = [];
             for (let i = 0; i < squares.length; i += 10) rows.push(squares.slice(i, i + 10).join(''));
@@ -1275,7 +1286,7 @@ const App = (() => {
         const secs     = parseFloat(elapsed);
         const diff     = (DIFF_NAMES[state.difficulty] ?? '').toLowerCase();
         const host     = new URL(shareLink(state.mode)).host;
-        const streak   = currentUser && currentStreak > 0 ? [['Day streak', String(currentStreak)]] : [];
+        const streak   = currentStreak > 0 ? [['Day streak', String(currentStreak)]] : [];
         const grid     = state.answeredQuestions.map(q => q.correct);
 
         switch (state.mode) {
@@ -1430,7 +1441,7 @@ const App = (() => {
 
     function initNav() {
         document.getElementById('quit-btn').addEventListener('click', () => {
-            if (session && settings.mode === 'daily' &&
+            if (settings.mode === 'daily' &&
                 !confirm("Quit the daily challenge? Today's attempt will be used up.")) return;
             session = null;
             stopTimers();
@@ -1469,6 +1480,7 @@ const App = (() => {
         initSubmitProblem();
         initShare();
         initProfileModal();
+        loadGuestDaily();   // replaced by the account's state once a signed-in user arrives
         refreshMenu();
         updateRankBadge(currentXP);
         updateDailyButton();
