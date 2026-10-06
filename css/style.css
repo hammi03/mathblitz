@@ -1295,3 +1295,4 @@ h1[tabindex="-1"]:focus:not(:focus-visible) { outline: none; }
     text-underline-offset: 3px;
     cursor: pointer;
 }
+.field-hint { font-size: 0.8rem; color: var(--haze); }

@@ -172,7 +172,15 @@ const App = (() => {
         DB.onAuthChange((event, user) => {
             if (event === 'TOKEN_REFRESHED') return;
             loadUser(user);
+            // Back from the reset email: signed in with a recovery session
+            if (user && (event === 'PASSWORD_RECOVERY' || DB.authLink.recovery)) openNewPassword();
         });
+
+        // An expired or already used email link lands here with #error=…
+        if (DB.authLink.error) {
+            UI.toast('This link has expired or was already used. Please request a new one.');
+            clearAuthHash();
+        }
 
         document.querySelectorAll('.modal-tab').forEach(tab => {
             tab.addEventListener('click', () => {
@@ -307,6 +315,78 @@ const App = (() => {
                 ? 'Too many requests. Please wait a minute and try again.'
                 : "Couldn't send the email right now. Please try again later.");
         }
+    }
+
+    // Removes what is left of an auth link (#access_token…, #error=…) from the address bar
+    function clearAuthHash() {
+        if (/access_token|error|type=/.test(location.hash)) history.replaceState(history.state, '', location.pathname + location.search);
+    }
+
+    const UPDATE_ERRORS = [
+        [/different from the old|same_password/i, "Please choose a password you haven't used before."],
+        [/weak|pwned|leaked/i,                    'That password is too easy to guess. Try a longer one.'],
+        [/session|expired|jwt|not.*logged/i,      'This reset link has expired. Please request a new one.'],
+    ];
+
+    // Shown once after the reset link: two fields, at least 8 characters, equal
+    let recoveryShown = false;
+
+    function openNewPassword() {
+        if (recoveryShown) return;
+        recoveryShown = true;
+        clearAuthHash();
+        closeAuthModal();
+        const err = msg => {
+            document.getElementById('newpw-error').textContent = msg;
+        };
+        UI.dialog({
+            title: 'Set a new password',
+            body: `<p>Choose a new password for your account.</p>
+                   <div class="form-group">
+                       <label for="newpw-1">New password</label>
+                       <input type="password" id="newpw-1" autocomplete="new-password" minlength="8" aria-describedby="newpw-hint newpw-error">
+                       <span class="field-hint" id="newpw-hint">At least 8 characters.</span>
+                   </div>
+                   <div class="form-group">
+                       <label for="newpw-2">Repeat new password</label>
+                       <input type="password" id="newpw-2" autocomplete="new-password" minlength="8" aria-describedby="newpw-error">
+                   </div>
+                   <p class="auth-error" id="newpw-error" aria-live="polite"></p>`,
+            primary:   'Save password',
+            secondary: 'Later',
+            onOpen:    overlay => overlay.querySelector('#newpw-1').focus(),
+            onPrimary: () => {
+                const f1 = document.getElementById('newpw-1');
+                const f2 = document.getElementById('newpw-2');
+                const save = document.getElementById('app-dialog-primary');
+                [f1, f2].forEach(f => f.removeAttribute('aria-invalid'));
+                if (f1.value.length < 8) {
+                    err('The password needs at least 8 characters.');
+                    f1.setAttribute('aria-invalid', 'true'); f1.focus();
+                    return false;
+                }
+                if (f1.value !== f2.value) {
+                    err("The passwords don't match.");
+                    f2.setAttribute('aria-invalid', 'true'); f2.focus();
+                    return false;
+                }
+                err('');
+                save.disabled = true;
+                save.textContent = 'Saving…';
+                DB.updatePassword(f1.value)
+                    .then(() => {
+                        UI.closeDialog('primary');
+                        UI.toast("Your password has been updated. You're signed in.");
+                    })
+                    .catch(e => {
+                        const text = `${e?.code ?? ''} ${e?.message ?? ''}`;
+                        err(UPDATE_ERRORS.find(([re]) => re.test(text))?.[1] ?? "Couldn't save the password. Please try again.");
+                        save.disabled = false;
+                        save.textContent = 'Save password';
+                    });
+                return false;   // stays open until the update is through
+            },
+        });
     }
 
     function openAuthModal() {
