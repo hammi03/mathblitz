@@ -225,6 +225,12 @@ const App = (() => {
                     return;
                 }
                 const data = await DB.signUp(email, pass, username);
+                // With email confirmation on, Supabase answers an existing address with
+                // a user that has no identities instead of an error
+                if (data.user && Array.isArray(data.user.identities) && data.user.identities.length === 0) {
+                    showEmailTaken(errEl, email);
+                    return;
+                }
                 track('signup');
                 if (data.session) {
                     closeAuthModal();
@@ -233,7 +239,8 @@ const App = (() => {
                     errEl.textContent = 'Account created! Check your email to confirm, then sign in.';
                 }
             } catch (e) {
-                errEl.textContent = e.message;
+                if (SIGNUP_TAKEN.test(`${e?.code ?? ''} ${e?.message ?? ''}`)) showEmailTaken(errEl, email);
+                else errEl.textContent = friendlySignupError(e);
             } finally {
                 setLoading('signup-btn', false);
             }
@@ -265,6 +272,36 @@ const App = (() => {
         }
         updateUserBar();
         updateDailyButton();
+    }
+
+    // ── Sign-up errors in plain words (never the raw Supabase message) ────────
+
+    const SIGNUP_TAKEN = /user_already_exists|email_exists|already registered|already exists/i;
+    const SIGNUP_ERRORS = [
+        [/email_address_invalid|invalid.*email|valid email/i, 'Please enter a valid email address.'],
+        [/weak_password|password.*(short|least|characters)/i, 'Please choose a longer password (at least 6 characters).'],
+        [/rate|too many|429/i,                                'Too many attempts. Please wait a minute and try again.'],
+        [/fetch|network|failed to/i,                          "Couldn't reach the server. Check your connection and try again."],
+        [/username/i,                                         'That username is already taken.'],
+    ];
+
+    function friendlySignupError(e) {
+        const text = `${e?.code ?? ''} ${e?.message ?? ''} ${e?.status ?? ''}`;
+        return SIGNUP_ERRORS.find(([re]) => re.test(text))?.[1] ?? "Sign-up didn't work. Please try again.";
+    }
+
+    // "This email already has an account. Sign in or reset your password."
+    function showEmailTaken(errEl, email) {
+        errEl.style.color = 'var(--line)';
+        errEl.innerHTML = 'This email already has an account. ' +
+            '<button type="button" class="link-btn" data-go="signin">Sign in</button> or ' +
+            '<button type="button" class="link-btn" data-go="forgot">reset your password</button>.';
+        errEl.querySelector('[data-go="signin"]').addEventListener('click', () => {
+            document.getElementById('signin-email').value = email;
+            showAuthTab('signin');
+            document.getElementById('signin-password').focus();
+        });
+        errEl.querySelector('[data-go="forgot"]').addEventListener('click', () => openForgotPassword(email));
     }
 
     // ── Password reset ────────────────────────────────────────────────────────
