@@ -89,10 +89,95 @@ const UI = (() => {
         overlays.forEach(o => new MutationObserver(sync).observe(o, { attributes: true, attributeFilter: ['class'] }));
 
         document.addEventListener('keydown', e => {
-            if (e.key !== 'Escape') return;
             const open = overlays.find(o => o.classList.contains('active'));
-            if (open) document.getElementById(closers[open.id])?.click();
+            if (!open) return;
+            if (e.key === 'Escape') {
+                e.preventDefault();
+                if (open.id === 'app-dialog') closeDialog('dismiss');
+                else document.getElementById(closers[open.id])?.click();
+            } else if (e.key === 'Tab') {
+                // Focus trap: Tab and Shift+Tab cycle inside the open dialog
+                const items = [...open.querySelectorAll('button, input, textarea, a[href], [tabindex]:not([tabindex="-1"])')]
+                    .filter(el => !el.disabled && el.getClientRects().length);
+                if (!items.length) return;
+                const first = items[0], last = items[items.length - 1];
+                if (e.shiftKey && (document.activeElement === first || !open.contains(document.activeElement))) {
+                    e.preventDefault(); last.focus();
+                } else if (!e.shiftKey && (document.activeElement === last || !open.contains(document.activeElement))) {
+                    e.preventDefault(); first.focus();
+                }
+            }
         });
+    }
+
+    // ── In-app dialog (instead of confirm / prompt) ───────────────────────────
+    // dialog({ title, body, primary, secondary, onOpen, onPrimary }) → Promise of
+    // 'primary' | 'secondary' | 'dismiss' (Escape). body is trusted HTML.
+    // The primary action is the big yellow button, the secondary a quiet text
+    // button. Focus goes to the primary button and returns to the opener.
+    // onPrimary runs inside the tap (needed for clipboard access on iOS);
+    // returning false keeps the dialog open.
+
+    let dialogResolve = null;
+    let dialogOpener  = null;
+    let dialogOnPrimary = null;
+
+    function dialog({ title, body = '', primary, secondary, onOpen, onPrimary }) {
+        if (dialogResolve) closeDialog('dismiss');
+        const overlay = document.getElementById('app-dialog');
+        document.getElementById('app-dialog-title').textContent = title;
+        document.getElementById('app-dialog-body').innerHTML   = body;
+        const p = document.getElementById('app-dialog-primary');
+        const s = document.getElementById('app-dialog-secondary');
+        p.textContent = primary;
+        s.textContent = secondary ?? '';
+        s.classList.toggle('hidden', !secondary);
+        return new Promise(resolve => {
+            dialogResolve = resolve;
+            dialogOpener  = document.activeElement;
+            dialogOnPrimary = onPrimary ?? null;
+            overlay.classList.add('active');      // initDialogs makes the page behind inert
+            p.focus();
+            onOpen?.(overlay);
+        });
+    }
+
+    function closeDialog(result) {
+        const resolve = dialogResolve;
+        const opener  = dialogOpener;
+        const overlay = document.getElementById('app-dialog');
+        dialogResolve = dialogOpener = dialogOnPrimary = null;
+        overlay.classList.remove('active');
+        resolve?.(result);
+        // Back to the opener, unless the caller already moved focus (e.g. to the answer field)
+        setTimeout(() => {
+            const a = document.activeElement;
+            if (!a || a === document.body || overlay.contains(a)) opener?.focus?.({ preventScroll: true });
+        }, 0);
+    }
+
+    function isDialogOpen() { return !!dialogResolve; }
+
+    function initAppDialog() {
+        document.getElementById('app-dialog-primary').addEventListener('click', () => {
+            if (dialogOnPrimary && dialogOnPrimary() === false) return;
+            closeDialog('primary');
+        });
+        document.getElementById('app-dialog-secondary').addEventListener('click', () => closeDialog('secondary'));
+    }
+
+    // ── Toast (instead of alert): polite, gone after ~4 s, no tap needed ──────
+
+    let toastTimer = null;
+
+    function toast(text) {
+        const el = document.getElementById('toast');
+        clearTimeout(toastTimer);
+        el.classList.remove('show');
+        el.textContent = '';
+        // New text after a beat so screen readers announce a repeat as well
+        setTimeout(() => { el.textContent = text; el.classList.add('show'); }, 50);
+        toastTimer = setTimeout(() => el.classList.remove('show'), 4050);
     }
 
     // ── Game HUD ──────────────────────────────────────────────────────────────
@@ -443,6 +528,11 @@ const UI = (() => {
         focusHeading,
         announce,
         initDialogs,
+        initAppDialog,
+        dialog,
+        closeDialog,
+        isDialogOpen,
+        toast,
         initPressedState,
         updateHUD,
         updateTimer,

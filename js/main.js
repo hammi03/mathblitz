@@ -259,7 +259,7 @@ const App = (() => {
     }
 
     function openAuthModal() {
-        if (!DB.isConfigured) { alert('Supabase not configured. Fill in js/config.js first.'); return; }
+        if (!DB.isConfigured) { UI.toast('Sign-in is unavailable right now. Please try again later.'); return; }
         document.getElementById('auth-modal').classList.add('active');
     }
     function closeAuthModal() {
@@ -301,7 +301,7 @@ const App = (() => {
         document.querySelectorAll('.mode-btn').forEach(btn => {
             btn.addEventListener('click', () => {
                 if (btn.id === 'community-mode-btn' && !DB.isConfigured) {
-                    alert('Community mode needs Supabase configured in js/config.js.');
+                    UI.toast('Community problems are unavailable right now. Please try again later.');
                     return;
                 }
                 settings.mode = btn.dataset.mode;
@@ -478,7 +478,7 @@ const App = (() => {
 
     async function requestNotificationPermission() {
         if (!('Notification' in window)) {
-            alert('Your browser does not support notifications.');
+            UI.toast('Your browser does not support notifications.');
             return;
         }
         const permission = await Notification.requestPermission();
@@ -533,6 +533,7 @@ const App = (() => {
     async function startGame() {
         if (countdownActive) return;
         if (settings.mode === 'daily' && dailyDone) return;
+        armPlay();
 
         countdownActive = true;
         stopTimers();
@@ -557,7 +558,7 @@ const App = (() => {
             } else if (settings.mode === 'community') {
                 const qs = await DB.getCommunityQuestions(20);
                 if (!qs.length) {
-                    alert('No community problems yet. Check back soon!');
+                    UI.toast('No community problems yet. Check back soon!');
                     UI.showScreen('menu');
                     return;
                 }
@@ -571,9 +572,9 @@ const App = (() => {
                 if (String(e.message).includes('daily_already_played')) {
                     dailyDone = true;
                     updateDailyButton();
-                    alert("You've already played today's daily challenge.");
+                    UI.toast("You've already played today's daily challenge.");
                 } else {
-                    alert('Could not start the daily challenge. Check your connection and try again.');
+                    UI.toast('Could not start the daily challenge. Check your connection and try again.');
                 }
                 UI.showScreen('menu');
                 return;
@@ -602,20 +603,29 @@ const App = (() => {
             zenElapsed = 0;
             UI.updateZenTimer(0);
             document.getElementById('progress-fill').style.width = '100%';
-            zenTimer = setInterval(() => { zenElapsed++; UI.updateZenTimer(zenElapsed); }, 1000);
+            zenTimer = setInterval(() => {
+                const secs = Math.floor(parseFloat(Game.elapsedSeconds()));   // stands still while paused
+                if (secs !== zenElapsed) { zenElapsed = secs; UI.updateZenTimer(secs); }
+            }, 250);
         }
 
         document.getElementById('answer-input').focus();
     }
 
+    // Polls the game clock; the display and the tick sound change once per second.
+    // While the round is paused Game.tick() returns null, so nothing moves.
     function startClassicTimer(totalTime) {
+        let shown = totalTime;
         classicTimer = setInterval(() => {
             const result = Game.tick();
             if (!result) return;
-            UI.updateTimer(result.timeLeft, totalTime);
-            if (result.timeLeft > 0 && result.timeLeft <= 5) Sound.tick(result.timeLeft);
+            if (result.timeLeft !== shown) {
+                shown = result.timeLeft;
+                UI.updateTimer(result.timeLeft, totalTime);
+                if (result.timeLeft > 0 && result.timeLeft <= 5) Sound.tick(result.timeLeft);
+            }
             if (result.gameOver) { stopTimers(); finishGame(result.state); }
-        }, 1000);
+        }, 100);
     }
 
     // ── Answer submission ─────────────────────────────────────────────────────
@@ -775,7 +785,7 @@ const App = (() => {
 
     function showLeaderboard() {
         if (!DB.isConfigured) {
-            alert('Fill in js/config.js with your Supabase credentials first.');
+            UI.toast('The leaderboard is unavailable right now. Please try again later.');
             return;
         }
         const validLbModes = ['global', 'classic', 'sprint', 'daily'];
@@ -933,6 +943,7 @@ const App = (() => {
         stopDuelWatchdog();
         _duelLastTick = Date.now();
         _duelWatchdog = setInterval(() => {
+            if (_duelPaused) { _duelLastTick = Date.now(); return; }   // no ticks while paused
             if (Date.now() - _duelLastTick < 6000) return;
             DuelClient.disconnect();
             showDuelProblem('⚠️', 'Connection lost');
@@ -950,11 +961,7 @@ const App = (() => {
             DuelClient.disconnect();   // also leaves a match that formed at the same moment
             UI.showScreen('menu');
         });
-        document.getElementById('forfeit-btn').addEventListener('click', () => {
-            if (!confirm('Give up this duel?')) return;
-            DuelClient.forfeit();
-            UI.showScreen('menu');
-        });
+        document.getElementById('forfeit-btn').addEventListener('click', confirmForfeit);
         document.getElementById('duel-again-btn').addEventListener('click', startDuelSearch);
         document.getElementById('duel-menu-btn').addEventListener('click', () => {
             DuelClient.disconnect();
@@ -988,13 +995,13 @@ const App = (() => {
         DuelClient.on('connect_error', () => {
             DuelClient.disconnect();
             UI.showScreen('menu');
-            alert('Could not connect to the duel server. Please try again in a moment.');
+            UI.toast('Could not connect to the duel server. Please try again in a moment.');
         });
 
         DuelClient.on('duel_error', ({ message }) => {
             DuelClient.disconnect();
             UI.showScreen('menu');
-            alert(message);
+            UI.toast(message);
         });
 
         DuelClient.on('searching', () => {
@@ -1052,7 +1059,7 @@ const App = (() => {
             ['duel-my-score','duel-opp-score'].forEach(id => document.getElementById(id).textContent = '0');
             ['duel-my-correct','duel-opp-correct'].forEach(id => document.getElementById(id).textContent = '0 ✓');
             document.getElementById('duel-timer').textContent = _duelDuration;
-            document.getElementById('duel-timer').style.color = '';
+            document.getElementById('duel-clock').style.color = '';
             document.getElementById('duel-progress').style.width = '100%';
             _duelAwaiting = false;
             showDuelPhase('active');
@@ -1101,9 +1108,8 @@ const App = (() => {
 
         DuelClient.on('timer_tick', ({ timeLeft }) => {
             _duelLastTick = Date.now();
-            const el = document.getElementById('duel-timer');
-            el.textContent = timeLeft;
-            el.style.color = timeLeft <= 20 ? 'var(--yellow)' : '';
+            document.getElementById('duel-timer').textContent = timeLeft;
+            document.getElementById('duel-clock').style.color = timeLeft <= 20 ? 'var(--yellow)' : '';
             document.getElementById('duel-progress').style.width = `${(timeLeft / _duelDuration) * 100}%`;
         });
 
@@ -1141,7 +1147,7 @@ const App = (() => {
                 showDuelProblem('⚠️', 'Disconnected');
             } else if (phase === 'searching') {
                 UI.showScreen('menu');
-                alert('Lost connection to the duel server. Please try again.');
+                UI.toast('Lost connection to the duel server. Please try again.');
             }
         });
 
@@ -1161,6 +1167,33 @@ const App = (() => {
         });
     }
 
+    // Leave dialog for a running duel. The bot duel stands still meanwhile;
+    // an online opponent can't be paused, so the dialog says so.
+    let _duelPaused = false;
+
+    async function confirmForfeit() {
+        if (UI.isDialogOpen() || currentDuelPhase() !== 'active') return;
+        _duelPaused = DuelClient.pause();
+        document.getElementById('screen-duel').classList.toggle('paused', _duelPaused);
+        const choice = await UI.dialog({
+            title:     'Give up this duel?',
+            body:      _duelPaused ? "You'll lose this duel. The clock is paused while you decide."
+                                   : "You'll lose this duel. Your opponent keeps playing while you decide.",
+            primary:   'Keep playing',
+            secondary: 'Give up',
+        });
+        document.getElementById('screen-duel').classList.remove('paused');
+        if (choice === 'secondary' && currentDuelPhase() === 'active') {
+            _duelPaused = false;
+            DuelClient.forfeit();
+            UI.showScreen('menu');
+            return;
+        }
+        if (_duelPaused) DuelClient.resume();
+        _duelPaused = false;
+        document.getElementById('duel-input').focus();
+    }
+
     function setSearchText(title, sub) {
         document.getElementById('duel-search-title').textContent = title;
         document.getElementById('duel-search-sub').textContent   = sub;
@@ -1178,6 +1211,7 @@ const App = (() => {
     }
 
     function enterDuelSearch(title, sub) {
+        armPlay();
         DuelClient.disconnect(); // clean up any previous connection
         _challengeLink = null;
         showDuelPhase('searching');
@@ -1230,7 +1264,7 @@ const App = (() => {
         history.replaceState(null, '', location.pathname + (rest ? `?${rest}` : ''));
 
         if (!DuelClient.isOnline()) {
-            alert('Online duels are coming soon! Until then, tap ⚔️ to duel our bot.');
+            UI.toast('Online duels are coming soon! Until then, tap "Duel the bot".');
             return;
         }
 
@@ -1240,7 +1274,7 @@ const App = (() => {
     }
 
     // Web Share API with clipboard fallback → 'shared' | 'copied' | 'failed'.
-    // allowPrompt: as a last resort show the text to copy by hand (only after a tap).
+    // allowPrompt: as a last resort show the text in a copy dialog (only after a tap).
     async function shareOrCopy(text, { allowPrompt = true } = {}) {
         if (navigator.share) {
             try {
@@ -1254,9 +1288,36 @@ const App = (() => {
             await navigator.clipboard.writeText(text);
             return 'copied';
         } catch {
-            if (allowPrompt) prompt('Copy this:', text);
+            if (allowPrompt) return (await showCopyDialog(text)) ? 'copied' : 'failed';
             return 'failed';
         }
+    }
+
+    // Last resort when sharing and the clipboard API both fail: the text in a
+    // selectable field with a Copy button. Resolves true once it was copied.
+    async function showCopyDialog(text) {
+        let copied = false;
+        const select = field => { field.focus(); field.select(); field.setSelectionRange(0, field.value.length); };
+        await UI.dialog({
+            title:     'Copy this',
+            body:      `<label for="copy-field" class="sr-only">Text to copy</label>` +
+                       `<textarea id="copy-field" class="copy-field" readonly>${escapeHtml(text)}</textarea>` +
+                       `<span id="copy-hint" aria-live="polite"></span>`,
+            primary:   'Copy',
+            secondary: 'Close',
+            onOpen:    overlay => select(overlay.querySelector('#copy-field')),
+            onPrimary: () => {
+                const field = document.getElementById('copy-field');
+                select(field);
+                try { copied = document.execCommand('copy'); } catch { copied = false; }
+                navigator.clipboard?.writeText(text).then(() => { copied = true; }).catch(() => {});
+                if (!copied) {
+                    document.getElementById('copy-hint').textContent = 'Select the text and copy it with your device.';
+                    return false;   // stay open so the text can be copied by hand
+                }
+            },
+        });
+        return copied;   // callers show their own "Copied" feedback
     }
 
     // ── History ───────────────────────────────────────────────────────────────
@@ -1467,17 +1528,89 @@ const App = (() => {
         });
     }
 
-    // ── Navigation ────────────────────────────────────────────────────────────
+    // ── Leaving a running round ───────────────────────────────────────────────
+    // The clock pauses while the dialog is open and resumes with the exact time
+    // that was left. "Keep playing" is the main action.
 
-    function initNav() {
-        document.getElementById('quit-btn').addEventListener('click', () => {
-            if (settings.mode === 'daily' &&
-                !confirm("Quit the daily challenge? Today's attempt will be used up.")) return;
+    async function confirmLeaveRound() {
+        if (UI.isDialogOpen() || !Game.isRunning()) return;
+        Game.pause();
+        const screen = document.getElementById('screen-game');
+        screen.classList.add('paused');
+        const daily = settings.mode === 'daily';
+        const choice = await UI.dialog({
+            title:     daily ? 'Quit the daily challenge?' : 'Leave this round?',
+            body:      daily ? `<span class="warn">Today's attempt will be used up. The next daily starts in ${timeToNextDaily()}.</span>`
+                             : settings.mode === 'zen' ? 'Your practice session ends here.'
+                             : "This round won't count. The clock is paused while you decide.",
+            primary:   'Keep playing',
+            secondary: 'Give up',
+        });
+        screen.classList.remove('paused');
+        if (choice === 'secondary') {
             session = null;
+            Game.stop();
             stopTimers();
             UI.showScreen('menu');
             refreshBest();
+            return;
+        }
+        Game.resume();
+        document.getElementById('answer-input').focus();
+    }
+
+    // ── Browser back / swipe back during play ─────────────────────────────────
+    // Starting a round or duel pushes one history entry. Back then lands on
+    // popstate instead of leaving the page: a running round or duel opens the
+    // leave dialog (and the entry is pushed again), a duel search is cancelled.
+    // Back on the menu or results the entry is removed again (leavePlay).
+
+    const PLAY_STATE = 'qq-play';
+    let ignorePop = false;
+
+    function armPlay() {
+        if (history.state?.qq !== PLAY_STATE) history.pushState({ qq: PLAY_STATE }, '');
+    }
+
+    function leavePlay() {
+        if (history.state?.qq !== PLAY_STATE) return;
+        ignorePop = true;
+        history.back();
+    }
+
+    function initBackButton() {
+        document.addEventListener('screenchange', e => {
+            if (e.detail === 'menu' || e.detail === 'results') leavePlay();
         });
+
+        window.addEventListener('popstate', () => {
+            const active = document.querySelector('.screen.active')?.id;
+            if (ignorePop) {
+                ignorePop = false;
+                // A new round started before our own back() landed: arm again
+                if (active === 'screen-game' || active === 'screen-duel') armPlay();
+                return;
+            }
+
+            if (active === 'screen-game' && (countdownActive || Game.isRunning())) {
+                armPlay();
+                confirmLeaveRound();   // no-op during the 3-2-1 countdown
+                return;
+            }
+            if (active === 'screen-duel') {
+                const phase = currentDuelPhase();
+                if (phase === 'active') { armPlay(); confirmForfeit(); return; }
+                if (phase === 'searching') DuelClient.cancelMatch();
+                DuelClient.disconnect();
+                UI.showScreen('menu');
+            }
+        });
+    }
+
+    // ── Navigation ────────────────────────────────────────────────────────────
+
+    function initNav() {
+        document.getElementById('quit-btn').addEventListener('click', confirmLeaveRound);
         document.getElementById('play-again-btn').addEventListener('click', () => {
             // Don't allow replay of daily or community
             if (settings.mode === 'daily' || settings.mode === 'community') { UI.showScreen('menu'); return; }
@@ -1501,10 +1634,12 @@ const App = (() => {
     async function init() {
         UI.mountNumpads();
         UI.initDialogs();
+        UI.initAppDialog();
         UI.initPressedState();
         initMenu();
         initAnswerInput();
         initNav();
+        initBackButton();
         initAuth();
         initLeaderboard();
         initDuel();

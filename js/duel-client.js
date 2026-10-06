@@ -85,11 +85,16 @@ const DuelClient = (() => {
         disconnect();
     }
 
+    // Only the bot can wait: an online opponent keeps playing, so these do
+    // nothing there. Returns whether the duel is now paused.
+    function pause()  { if (ONLINE) return false; BotDuel.pause(); return true; }
+    function resume() { if (!ONLINE) BotDuel.resume(); }
+
     // The bot doesn't react to emojis
     function sendReaction(emoji) { socket?.emit('send_reaction', { emoji }); }
 
     return {
         on, isOnline, connect, disconnect, findMatch, createChallenge, joinChallenge,
-        cancelMatch, submitAnswer, forfeit, sendReaction,
+        cancelMatch, submitAnswer, forfeit, sendReaction, pause, resume,
     };
 })();
