@@ -47,7 +47,7 @@ const App = (() => {
         const badge = document.getElementById('rank-badge');
         if (!currentUser) { badge.className = 'rank-badge hidden'; return; }
         const rank = getRankForXP(xp);
-        badge.textContent = `${rank.icon} ${rank.name}`;
+        badge.innerHTML = `<span aria-hidden="true">${rank.icon}</span><span class="rank-name"> ${escapeHtml(rank.name)}</span>`;
         badge.className   = `rank-badge ${rank.cls}`;
     }
 

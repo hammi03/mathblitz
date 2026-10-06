@@ -804,6 +804,19 @@ input::placeholder { color: var(--haze); opacity: 1; }
 .user-info { display: flex; align-items: center; justify-content: flex-end; gap: 0.5rem; min-width: 0; }
 .user-name { font-size: 0.95rem; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .user-name.muted { color: var(--haze); font-weight: 400; }
+#sign-out-btn { white-space: nowrap; }
+/* The account controls keep their size; the logo gives way on narrow screens */
+.header-actions, .user-bar, .user-info { flex-shrink: 0; min-width: auto; }
+.menu-header .logo { min-width: 0; }
+.menu-header .logo h1 { font-size: clamp(1.55rem, 7.2vw, 2.3rem); }
+/* Narrow screens, signed in: rank icon only and no name next to the sound
+   switch and Sign out; both stay readable for screen readers */
+@media (max-width: 440px) {
+    .user-info .user-name, .rank-badge .rank-name {
+        position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap;
+    }
+    .rank-badge { padding: 0.25rem 0.4rem; font-size: 1rem; }
+}
 
 /* ── Modals ── */
 .modal-overlay {
