@@ -804,6 +804,19 @@ input::placeholder { color: var(--haze); opacity: 1; }
 .user-info { display: flex; align-items: center; justify-content: flex-end; gap: 0.5rem; min-width: 0; }
 .user-name { font-size: 0.95rem; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .user-name.muted { color: var(--haze); font-weight: 400; }
+#sign-out-btn { white-space: nowrap; }
+/* The account controls keep their size; the logo gives way on narrow screens */
+.header-actions, .user-bar, .user-info { flex-shrink: 0; min-width: auto; }
+.menu-header .logo { min-width: 0; }
+.menu-header .logo h1 { font-size: clamp(1.55rem, 7.2vw, 2.3rem); }
+/* Narrow screens, signed in: rank icon only and no name next to the sound
+   switch and Sign out; both stay readable for screen readers */
+@media (max-width: 440px) {
+    .user-info .user-name, .rank-badge .rank-name {
+        position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap;
+    }
+    .rank-badge { padding: 0.25rem 0.4rem; font-size: 1rem; }
+}
 
 /* ── Modals ── */
 .modal-overlay {
@@ -1266,3 +1279,33 @@ h1[tabindex="-1"]:focus:not(:focus-visible) { outline: none; }
 
 /* While the leave dialog is open the round is paused: hide the question */
 .paused .question, .paused #duel-question { filter: blur(14px); }
+
+/* ── Password reset ── */
+.forgot-link { align-self: flex-end; min-height: 44px; margin-top: -0.4rem; padding: 0.4rem 0; font-size: 0.9rem; }
+.app-dialog-body .form-group { text-align: left; margin-top: 0.8rem; }
+.app-dialog-body .form-group input {
+    min-height: 46px;
+    padding: 0.6rem 0.85rem;
+    background: var(--inset);
+    border: 2px solid var(--hairline);
+    border-radius: var(--r-sm);
+    color: var(--line);
+    font-size: 1rem;
+    outline: none;
+}
+.app-dialog-body .form-group input:focus { border-color: var(--line); }
+.app-dialog-body .form-group input[aria-invalid="true"] { border-color: var(--clay); }
+.app-dialog-body .auth-error { text-align: left; margin-top: 0.4rem; }
+.app-dialog-body .auth-error:empty { display: none; }
+.link-btn {
+    background: none;
+    border: none;
+    padding: 0;
+    color: var(--line);
+    font: inherit;
+    font-weight: 700;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+    cursor: pointer;
+}
+.field-hint { font-size: 0.8rem; color: var(--haze); }

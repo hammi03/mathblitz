@@ -47,7 +47,7 @@ const App = (() => {
         const badge = document.getElementById('rank-badge');
         if (!currentUser) { badge.className = 'rank-badge hidden'; return; }
         const rank = getRankForXP(xp);
-        badge.textContent = `${rank.icon} ${rank.name}`;
+        badge.innerHTML = `<span aria-hidden="true">${rank.icon}</span><span class="rank-name"> ${escapeHtml(rank.name)}</span>`;
         badge.className   = `rank-badge ${rank.cls}`;
     }
 
@@ -172,7 +172,15 @@ const App = (() => {
         DB.onAuthChange((event, user) => {
             if (event === 'TOKEN_REFRESHED') return;
             loadUser(user);
+            // Back from the reset email: signed in with a recovery session
+            if (user && (event === 'PASSWORD_RECOVERY' || DB.authLink.recovery)) openNewPassword();
         });
+
+        // An expired or already used email link lands here with #error=…
+        if (DB.authLink.error) {
+            UI.toast('This link has expired or was already used. Please request a new one.');
+            clearAuthHash();
+        }
 
         document.querySelectorAll('.modal-tab').forEach(tab => {
             tab.addEventListener('click', () => {
@@ -217,6 +225,12 @@ const App = (() => {
                     return;
                 }
                 const data = await DB.signUp(email, pass, username);
+                // With email confirmation on, Supabase answers an existing address with
+                // a user that has no identities instead of an error
+                if (data.user && Array.isArray(data.user.identities) && data.user.identities.length === 0) {
+                    showEmailTaken(errEl, email);
+                    return;
+                }
                 track('signup');
                 if (data.session) {
                     closeAuthModal();
@@ -225,7 +239,8 @@ const App = (() => {
                     errEl.textContent = 'Account created! Check your email to confirm, then sign in.';
                 }
             } catch (e) {
-                errEl.textContent = e.message;
+                if (SIGNUP_TAKEN.test(`${e?.code ?? ''} ${e?.message ?? ''}`)) showEmailTaken(errEl, email);
+                else errEl.textContent = friendlySignupError(e);
             } finally {
                 setLoading('signup-btn', false);
             }
@@ -236,6 +251,7 @@ const App = (() => {
             closeAuthModal();
         });
         document.getElementById('sign-in-menu-btn').addEventListener('click', openAuthModal);
+        document.getElementById('forgot-btn').addEventListener('click', () => openForgotPassword());
         document.getElementById('sign-out-btn').addEventListener('click', async () => {
             await DB.signOut();
         });
@@ -256,6 +272,158 @@ const App = (() => {
         }
         updateUserBar();
         updateDailyButton();
+    }
+
+    // ── Sign-up errors in plain words (never the raw Supabase message) ────────
+
+    const SIGNUP_TAKEN = /user_already_exists|email_exists|already registered|already exists/i;
+    const SIGNUP_ERRORS = [
+        [/email_address_invalid|invalid.*email|valid email/i, 'Please enter a valid email address.'],
+        [/weak_password|password.*(short|least|characters)/i, 'Please choose a longer password (at least 6 characters).'],
+        [/rate|too many|429/i,                                'Too many attempts. Please wait a minute and try again.'],
+        [/fetch|network|failed to/i,                          "Couldn't reach the server. Check your connection and try again."],
+        [/username/i,                                         'That username is already taken.'],
+    ];
+
+    function friendlySignupError(e) {
+        const text = `${e?.code ?? ''} ${e?.message ?? ''} ${e?.status ?? ''}`;
+        return SIGNUP_ERRORS.find(([re]) => re.test(text))?.[1] ?? "Sign-up didn't work. Please try again.";
+    }
+
+    // "This email already has an account. Sign in or reset your password."
+    function showEmailTaken(errEl, email) {
+        errEl.style.color = 'var(--line)';
+        errEl.innerHTML = 'This email already has an account. ' +
+            '<button type="button" class="link-btn" data-go="signin">Sign in</button> or ' +
+            '<button type="button" class="link-btn" data-go="forgot">reset your password</button>.';
+        errEl.querySelector('[data-go="signin"]').addEventListener('click', () => {
+            document.getElementById('signin-email').value = email;
+            showAuthTab('signin');
+            document.getElementById('signin-password').focus();
+        });
+        errEl.querySelector('[data-go="forgot"]').addEventListener('click', () => openForgotPassword(email));
+    }
+
+    // ── Password reset ────────────────────────────────────────────────────────
+
+    const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+    function showAuthTab(name) {
+        document.querySelectorAll('.modal-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === name));
+        document.querySelectorAll('.modal-pane').forEach(p => p.classList.toggle('active', p.id === `tab-${name}`));
+    }
+
+    // Asks for the email and sends the reset link. The answer is always the
+    // same neutral toast, so nobody can find out whether an address has an account.
+    async function openForgotPassword(prefill = '') {
+        const email = prefill || document.getElementById('signin-email').value.trim();
+        closeAuthModal();
+        let chosen = '';
+        const choice = await UI.dialog({
+            title: 'Reset your password',
+            body: `<p>Enter the email of your account. We'll send you a link to set a new password.</p>
+                   <div class="form-group">
+                       <label for="reset-email">Email</label>
+                       <input type="email" id="reset-email" autocomplete="email" inputmode="email" placeholder="you@example.com" value="${escapeHtml(email)}" aria-describedby="reset-error">
+                   </div>
+                   <p class="auth-error" id="reset-error" aria-live="polite"></p>`,
+            primary:   'Send reset link',
+            secondary: 'Back to sign in',
+            onOpen:    overlay => overlay.querySelector('#reset-email').focus(),
+            onPrimary: () => {
+                const field = document.getElementById('reset-email');
+                chosen = field.value.trim();
+                if (!EMAIL_RE.test(chosen)) {
+                    document.getElementById('reset-error').textContent = 'Please enter a valid email address.';
+                    field.setAttribute('aria-invalid', 'true');
+                    field.focus();
+                    return false;
+                }
+            },
+        });
+        if (choice === 'secondary') { openAuthModal(); showAuthTab('signin'); return; }
+        if (choice !== 'primary') return;
+        try {
+            await DB.requestPasswordReset(chosen);
+            UI.toast("If an account exists for this email, we've sent a reset link.");
+        } catch (e) {
+            // Only problems on our side or with sending show up here – never "no such account"
+            UI.toast(/rate|limit|too many|429/i.test(e?.message || '') || e?.status === 429
+                ? 'Too many requests. Please wait a minute and try again.'
+                : "Couldn't send the email right now. Please try again later.");
+        }
+    }
+
+    // Removes what is left of an auth link (#access_token…, #error=…) from the address bar
+    function clearAuthHash() {
+        if (/access_token|error|type=/.test(location.hash)) history.replaceState(history.state, '', location.pathname + location.search);
+    }
+
+    const UPDATE_ERRORS = [
+        [/different from the old|same_password/i, "Please choose a password you haven't used before."],
+        [/weak|pwned|leaked/i,                    'That password is too easy to guess. Try a longer one.'],
+        [/session|expired|jwt|not.*logged/i,      'This reset link has expired. Please request a new one.'],
+    ];
+
+    // Shown once after the reset link: two fields, at least 8 characters, equal
+    let recoveryShown = false;
+
+    function openNewPassword() {
+        if (recoveryShown) return;
+        recoveryShown = true;
+        clearAuthHash();
+        closeAuthModal();
+        const err = msg => {
+            document.getElementById('newpw-error').textContent = msg;
+        };
+        UI.dialog({
+            title: 'Set a new password',
+            body: `<p>Choose a new password for your account.</p>
+                   <div class="form-group">
+                       <label for="newpw-1">New password</label>
+                       <input type="password" id="newpw-1" autocomplete="new-password" minlength="8" aria-describedby="newpw-hint newpw-error">
+                       <span class="field-hint" id="newpw-hint">At least 8 characters.</span>
+                   </div>
+                   <div class="form-group">
+                       <label for="newpw-2">Repeat new password</label>
+                       <input type="password" id="newpw-2" autocomplete="new-password" minlength="8" aria-describedby="newpw-error">
+                   </div>
+                   <p class="auth-error" id="newpw-error" aria-live="polite"></p>`,
+            primary:   'Save password',
+            secondary: 'Later',
+            onOpen:    overlay => overlay.querySelector('#newpw-1').focus(),
+            onPrimary: () => {
+                const f1 = document.getElementById('newpw-1');
+                const f2 = document.getElementById('newpw-2');
+                const save = document.getElementById('app-dialog-primary');
+                [f1, f2].forEach(f => f.removeAttribute('aria-invalid'));
+                if (f1.value.length < 8) {
+                    err('The password needs at least 8 characters.');
+                    f1.setAttribute('aria-invalid', 'true'); f1.focus();
+                    return false;
+                }
+                if (f1.value !== f2.value) {
+                    err("The passwords don't match.");
+                    f2.setAttribute('aria-invalid', 'true'); f2.focus();
+                    return false;
+                }
+                err('');
+                save.disabled = true;
+                save.textContent = 'Saving…';
+                DB.updatePassword(f1.value)
+                    .then(() => {
+                        UI.closeDialog('primary');
+                        UI.toast("Your password has been updated. You're signed in.");
+                    })
+                    .catch(e => {
+                        const text = `${e?.code ?? ''} ${e?.message ?? ''}`;
+                        err(UPDATE_ERRORS.find(([re]) => re.test(text))?.[1] ?? "Couldn't save the password. Please try again.");
+                        save.disabled = false;
+                        save.textContent = 'Save password';
+                    });
+                return false;   // stays open until the update is through
+            },
+        });
     }
 
     function openAuthModal() {

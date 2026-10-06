@@ -7,6 +7,16 @@ const SUPABASE_CONFIGURED =
     typeof SUPABASE_URL !== 'undefined' &&
     SUPABASE_URL !== 'YOUR_PROJECT_URL';
 
+// Read before the client starts: it handles and then clears the link's
+// #access_token…&type=recovery (or #error=… for an expired link) on its own.
+const AUTH_LINK = (() => {
+    const params = new URLSearchParams(location.hash.slice(1) + '&' + location.search.slice(1));
+    return {
+        recovery: params.get('type') === 'recovery',
+        error:    params.get('error_code') || params.get('error') || null,
+    };
+})();
+
 const _client = SUPABASE_CONFIGURED
     ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY)
     : null;
@@ -27,6 +37,22 @@ const DB = (() => {
     async function signIn(email, password) {
         if (!_client) throw new Error('Supabase not configured');
         const { data, error } = await _client.auth.signInWithPassword({ email, password });
+        if (error) throw error;
+        return data;
+    }
+
+    // Sends the reset email. Supabase answers the same whether or not the
+    // address has an account, so the caller can't (and shouldn't) tell.
+    async function requestPasswordReset(email) {
+        if (!_client) throw new Error('Supabase not configured');
+        const { error } = await _client.auth.resetPasswordForEmail(email, { redirectTo: location.origin + '/' });
+        if (error) throw error;
+    }
+
+    // After the reset link the user is signed in with a recovery session
+    async function updatePassword(password) {
+        if (!_client) throw new Error('Supabase not configured');
+        const { data, error } = await _client.auth.updateUser({ password });
         if (error) throw error;
         return data;
     }
@@ -196,6 +222,7 @@ const DB = (() => {
     return {
         isConfigured: SUPABASE_CONFIGURED,
         signUp, signIn, signOut, getUser, getProfile, onAuthChange,
+        requestPasswordReset, updatePassword, authLink: AUTH_LINK,
         getAccessToken, isUsernameAvailable,
         startGame, startDaily, submitGame,
         getDailyLeaderboard, hasUserCompletedDaily,

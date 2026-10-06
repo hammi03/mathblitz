@@ -130,6 +130,7 @@ const UI = (() => {
         const p = document.getElementById('app-dialog-primary');
         const s = document.getElementById('app-dialog-secondary');
         p.textContent = primary;
+        p.disabled    = false;
         s.textContent = secondary ?? '';
         s.classList.toggle('hidden', !secondary);
         return new Promise(resolve => {
@@ -164,6 +165,13 @@ const UI = (() => {
             closeDialog('primary');
         });
         document.getElementById('app-dialog-secondary').addEventListener('click', () => closeDialog('secondary'));
+        // Enter in a dialog field triggers the main action, like a form
+        document.getElementById('app-dialog').addEventListener('keydown', e => {
+            if (e.key === 'Enter' && e.target.matches('input')) {
+                e.preventDefault();
+                document.getElementById('app-dialog-primary').click();
+            }
+        });
     }
 
     // ── Toast (instead of alert): polite, gone after ~4 s, no tap needed ──────
