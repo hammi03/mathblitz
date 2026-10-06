@@ -236,6 +236,7 @@ const App = (() => {
             closeAuthModal();
         });
         document.getElementById('sign-in-menu-btn').addEventListener('click', openAuthModal);
+        document.getElementById('forgot-btn').addEventListener('click', () => openForgotPassword());
         document.getElementById('sign-out-btn').addEventListener('click', async () => {
             await DB.signOut();
         });
@@ -256,6 +257,56 @@ const App = (() => {
         }
         updateUserBar();
         updateDailyButton();
+    }
+
+    // ── Password reset ────────────────────────────────────────────────────────
+
+    const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+    function showAuthTab(name) {
+        document.querySelectorAll('.modal-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === name));
+        document.querySelectorAll('.modal-pane').forEach(p => p.classList.toggle('active', p.id === `tab-${name}`));
+    }
+
+    // Asks for the email and sends the reset link. The answer is always the
+    // same neutral toast, so nobody can find out whether an address has an account.
+    async function openForgotPassword(prefill = '') {
+        const email = prefill || document.getElementById('signin-email').value.trim();
+        closeAuthModal();
+        let chosen = '';
+        const choice = await UI.dialog({
+            title: 'Reset your password',
+            body: `<p>Enter the email of your account. We'll send you a link to set a new password.</p>
+                   <div class="form-group">
+                       <label for="reset-email">Email</label>
+                       <input type="email" id="reset-email" autocomplete="email" inputmode="email" placeholder="you@example.com" value="${escapeHtml(email)}" aria-describedby="reset-error">
+                   </div>
+                   <p class="auth-error" id="reset-error" aria-live="polite"></p>`,
+            primary:   'Send reset link',
+            secondary: 'Back to sign in',
+            onOpen:    overlay => overlay.querySelector('#reset-email').focus(),
+            onPrimary: () => {
+                const field = document.getElementById('reset-email');
+                chosen = field.value.trim();
+                if (!EMAIL_RE.test(chosen)) {
+                    document.getElementById('reset-error').textContent = 'Please enter a valid email address.';
+                    field.setAttribute('aria-invalid', 'true');
+                    field.focus();
+                    return false;
+                }
+            },
+        });
+        if (choice === 'secondary') { openAuthModal(); showAuthTab('signin'); return; }
+        if (choice !== 'primary') return;
+        try {
+            await DB.requestPasswordReset(chosen);
+            UI.toast("If an account exists for this email, we've sent a reset link.");
+        } catch (e) {
+            // Only problems on our side or with sending show up here – never "no such account"
+            UI.toast(/rate|limit|too many|429/i.test(e?.message || '') || e?.status === 429
+                ? 'Too many requests. Please wait a minute and try again.'
+                : "Couldn't send the email right now. Please try again later.");
+        }
     }
 
     function openAuthModal() {

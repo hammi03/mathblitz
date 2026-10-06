@@ -1266,3 +1266,32 @@ h1[tabindex="-1"]:focus:not(:focus-visible) { outline: none; }
 
 /* While the leave dialog is open the round is paused: hide the question */
 .paused .question, .paused #duel-question { filter: blur(14px); }
+
+/* ── Password reset ── */
+.forgot-link { align-self: flex-end; min-height: 44px; margin-top: -0.4rem; padding: 0.4rem 0; font-size: 0.9rem; }
+.app-dialog-body .form-group { text-align: left; margin-top: 0.8rem; }
+.app-dialog-body .form-group input {
+    min-height: 46px;
+    padding: 0.6rem 0.85rem;
+    background: var(--inset);
+    border: 2px solid var(--hairline);
+    border-radius: var(--r-sm);
+    color: var(--line);
+    font-size: 1rem;
+    outline: none;
+}
+.app-dialog-body .form-group input:focus { border-color: var(--line); }
+.app-dialog-body .form-group input[aria-invalid="true"] { border-color: var(--clay); }
+.app-dialog-body .auth-error { text-align: left; margin-top: 0.4rem; }
+.app-dialog-body .auth-error:empty { display: none; }
+.link-btn {
+    background: none;
+    border: none;
+    padding: 0;
+    color: var(--line);
+    font: inherit;
+    font-weight: 700;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+    cursor: pointer;
+}
